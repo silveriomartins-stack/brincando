@@ -1,8 +1,7 @@
 {
-  "name": "controle-celular-unico",
+  "name": "controle-celular",
   "version": "1.0.0",
-  "description": "Sistema completo de controle remoto para celular - Arquivo único",
-  "main": "server.js",
+  "type": "commonjs",
   "scripts": {
     "start": "node server.js"
   },
