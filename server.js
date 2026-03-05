@@ -22,7 +22,7 @@ app.get('/', (req, res) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>📱 Controle Remoto</title>
+    <title>📱 Controle Remoto Premium</title>
     <style>
         * {
             margin: 0;
@@ -38,7 +38,7 @@ app.get('/', (req, res) => {
         }
         
         .container {
-            max-width: 800px;
+            max-width: 1000px;
             margin: 0 auto;
         }
         
@@ -60,13 +60,20 @@ app.get('/', (req, res) => {
         h2 {
             color: #4a5568;
             margin-bottom: 20px;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 10px;
+        }
+        
+        h3 {
+            color: #4a5568;
+            margin: 15px 0 10px 0;
         }
         
         .input-group {
             margin-bottom: 20px;
         }
         
-        input {
+        input, select {
             width: 100%;
             padding: 15px;
             border: 2px solid #e2e8f0;
@@ -74,7 +81,7 @@ app.get('/', (req, res) => {
             font-size: 16px;
         }
         
-        input:focus {
+        input:focus, select:focus {
             outline: none;
             border-color: #667eea;
         }
@@ -105,14 +112,6 @@ app.get('/', (req, res) => {
             color: #4a5568;
         }
         
-        .status {
-            padding: 15px;
-            border-radius: 10px;
-            margin-top: 20px;
-            text-align: center;
-            font-weight: 600;
-        }
-        
         .success {
             background: #c6f6d5;
             color: #22543d;
@@ -139,12 +138,34 @@ app.get('/', (req, res) => {
             margin-top: 20px;
         }
         
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .grid-4 {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
         .control-btn {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 20px;
-            font-size: 18px;
+            padding: 20px 10px;
+            font-size: 16px;
             width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .control-btn span {
+            font-size: 24px;
         }
         
         #qrcode-container {
@@ -161,10 +182,15 @@ app.get('/', (req, res) => {
             background: #f7fafc;
             border-radius: 10px;
             padding: 15px;
-            max-height: 200px;
+            max-height: 300px;
             overflow-y: auto;
             font-family: monospace;
-            margin-top: 20px;
+            font-size: 14px;
+        }
+        
+        .log-entry {
+            padding: 5px;
+            border-bottom: 1px solid #e2e8f0;
         }
         
         .info-box {
@@ -175,8 +201,34 @@ app.get('/', (req, res) => {
             margin: 20px 0;
         }
         
-        @media (max-width: 600px) {
-            .grid-2 {
+        .media-container {
+            margin-top: 20px;
+            text-align: center;
+        }
+        
+        .media-container img, .media-container video {
+            max-width: 100%;
+            max-height: 400px;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+        }
+        
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            text-align: center;
+            font-weight: 600;
+        }
+        
+        @media (max-width: 768px) {
+            .grid-2, .grid-3, .grid-4 {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .grid-2, .grid-3, .grid-4 {
                 grid-template-columns: 1fr;
             }
         }
@@ -184,20 +236,284 @@ app.get('/', (req, res) => {
 </head>
 <body>
     <div class="container">
-        <h1>${modo === 'celular' ? '📱 Modo Celular' : '🎮 Painel de Controle'}</h1>
+        <h1>${modo === 'celular' ? '📱 Modo Celular' : '🎮 Painel de Controle Premium'}</h1>
         
         ${modo === 'celular' ? `
+        <!-- MODO CELULAR -->
         <div class="card">
             <h2>Conectado como Celular</h2>
             <div class="codigo">${codigo}</div>
             <p style="text-align: center; color: #718096;">Use este código no painel de controle</p>
             <div id="status-celular" class="status" style="display: none;"></div>
-            <div id="comandos-recebidos" class="log-container" style="display: none;">
-                <h3 style="margin-bottom: 10px;">Comandos Recebidos:</h3>
-                <div id="lista-comandos"></div>
+            
+            <div id="comandos-recebidos" style="margin-top: 20px;">
+                <h3>Comandos Recebidos:</h3>
+                <div id="lista-comandos" class="log-container"></div>
             </div>
+            
+            <div id="media-display" class="media-container" style="display: none;"></div>
         </div>
+        
+        <script>
+            let mediaStream = null;
+            let mediaRecorder = null;
+            let recordedChunks = [];
+            
+            socket.on('executar-comando', async (data) => {
+                const { comando, valor } = data;
+                const lista = document.getElementById('lista-comandos');
+                const mediaDisplay = document.getElementById('media-display');
+                
+                // Mostrar comando
+                const comandoDiv = document.createElement('div');
+                comandoDiv.className = 'log-entry';
+                comandoDiv.innerHTML = \`[${new Date().toLocaleTimeString()}] 📥 Comando: \${comando}\`;
+                lista.insertBefore(comandoDiv, lista.firstChild);
+                
+                let resposta = { comando };
+                
+                try {
+                    switch(comando) {
+                        case 'vibrar':
+                            if (navigator.vibrate) {
+                                navigator.vibrate(valor || 200);
+                                resposta.resultado = 'Vibração executada';
+                            } else {
+                                resposta.erro = 'Vibração não suportada';
+                            }
+                            break;
+                            
+                        case 'alerta':
+                            alert(valor.msg || '📱 Comando recebido!');
+                            resposta.resultado = 'Alerta mostrado';
+                            break;
+                            
+                        case 'beep':
+                            try {
+                                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                                const osc = ctx.createOscillator();
+                                osc.connect(ctx.destination);
+                                osc.frequency.value = 800;
+                                osc.start();
+                                osc.stop(ctx.currentTime + 0.1);
+                                resposta.resultado = 'Beep executado';
+                            } catch (e) {
+                                resposta.erro = 'Erro no beep';
+                            }
+                            break;
+                            
+                        case 'print':
+                            try {
+                                const canvas = document.createElement('canvas');
+                                const context = canvas.getContext('2d');
+                                const video = document.createElement('video');
+                                
+                                // Capturar tela
+                                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                                video.srcObject = stream;
+                                
+                                await new Promise(resolve => {
+                                    video.onloadedmetadata = () => {
+                                        video.play();
+                                        resolve();
+                                    };
+                                });
+                                
+                                // Desenhar no canvas
+                                canvas.width = video.videoWidth;
+                                canvas.height = video.videoHeight;
+                                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                                
+                                // Parar stream
+                                stream.getTracks().forEach(track => track.stop());
+                                
+                                // Converter para base64
+                                const screenshot = canvas.toDataURL('image/png');
+                                
+                                resposta.resultado = 'Screenshot capturada';
+                                resposta.dados = screenshot;
+                                
+                                // Mostrar preview
+                                mediaDisplay.style.display = 'block';
+                                mediaDisplay.innerHTML = \`<img src="\${screenshot}" alt="Screenshot">\`;
+                            } catch (e) {
+                                resposta.erro = 'Erro ao capturar tela: ' + e.message;
+                            }
+                            break;
+                            
+                        case 'camera':
+                            try {
+                                if (mediaStream) {
+                                    mediaStream.getTracks().forEach(track => track.stop());
+                                }
+                                
+                                mediaStream = await navigator.mediaDevices.getUserMedia({ 
+                                    video: true,
+                                    audio: valor.audio || false 
+                                });
+                                
+                                const video = document.createElement('video');
+                                video.srcObject = mediaStream;
+                                video.autoplay = true;
+                                video.playsInline = true;
+                                
+                                mediaDisplay.style.display = 'block';
+                                mediaDisplay.innerHTML = '';
+                                mediaDisplay.appendChild(video);
+                                
+                                resposta.resultado = 'Câmera ativada';
+                            } catch (e) {
+                                resposta.erro = 'Erro ao acessar câmera: ' + e.message;
+                            }
+                            break;
+                            
+                        case 'foto':
+                            try {
+                                if (!mediaStream) {
+                                    mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                                }
+                                
+                                const video = document.createElement('video');
+                                video.srcObject = mediaStream;
+                                video.autoplay = true;
+                                
+                                await new Promise(resolve => {
+                                    video.onloadedmetadata = () => {
+                                        video.play();
+                                        resolve();
+                                    };
+                                });
+                                
+                                const canvas = document.createElement('canvas');
+                                canvas.width = video.videoWidth;
+                                canvas.height = video.videoHeight;
+                                canvas.getContext('2d').drawImage(video, 0, 0);
+                                
+                                const foto = canvas.toDataURL('image/jpeg');
+                                
+                                mediaDisplay.style.display = 'block';
+                                mediaDisplay.innerHTML = \`<img src="\${foto}" alt="Foto">\`;
+                                
+                                resposta.resultado = 'Foto tirada';
+                                resposta.dados = foto;
+                            } catch (e) {
+                                resposta.erro = 'Erro ao tirar foto: ' + e.message;
+                            }
+                            break;
+                            
+                        case 'audio':
+                            try {
+                                const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                                mediaRecorder = new MediaRecorder(audioStream);
+                                recordedChunks = [];
+                                
+                                mediaRecorder.ondataavailable = (e) => {
+                                    if (e.data.size > 0) {
+                                        recordedChunks.push(e.data);
+                                    }
+                                };
+                                
+                                mediaRecorder.onstop = () => {
+                                    const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+                                    const reader = new FileReader();
+                                    reader.readAsDataURL(blob);
+                                    reader.onloadend = () => {
+                                        socket.emit('resposta', {
+                                            comando: 'audio-gravado',
+                                            dados: reader.result
+                                        });
+                                    };
+                                };
+                                
+                                if (valor.acao === 'iniciar') {
+                                    mediaRecorder.start();
+                                    resposta.resultado = 'Gravação de áudio iniciada';
+                                } else if (valor.acao === 'parar') {
+                                    mediaRecorder.stop();
+                                    audioStream.getTracks().forEach(track => track.stop());
+                                    resposta.resultado = 'Gravação de áudio finalizada';
+                                }
+                            } catch (e) {
+                                resposta.erro = 'Erro no áudio: ' + e.message;
+                            }
+                            break;
+                            
+                        case 'localizacao':
+                            try {
+                                const position = await new Promise((resolve, reject) => {
+                                    navigator.geolocation.getCurrentPosition(resolve, reject);
+                                });
+                                
+                                resposta.resultado = {
+                                    latitude: position.coords.latitude,
+                                    longitude: position.coords.longitude,
+                                    precisao: position.coords.accuracy
+                                };
+                                
+                                mediaDisplay.style.display = 'block';
+                                mediaDisplay.innerHTML = \`
+                                    <div class="info-box">
+                                        <h4>Localização:</h4>
+                                        <p>Latitude: \${position.coords.latitude}</p>
+                                        <p>Longitude: \${position.coords.longitude}</p>
+                                        <p>Precisão: \${position.coords.accuracy}m</p>
+                                        <a href="https://www.google.com/maps?q=\${position.coords.latitude},\${position.coords.longitude}" 
+                                           target="_blank" class="primary" style="display: inline-block; margin-top: 10px;">
+                                            Ver no Maps
+                                        </a>
+                                    </div>
+                                \`;
+                            } catch (e) {
+                                resposta.erro = 'Erro ao obter localização: ' + e.message;
+                            }
+                            break;
+                            
+                        case 'bateria':
+                            if (navigator.getBattery) {
+                                const battery = await navigator.getBattery();
+                                resposta.resultado = {
+                                    nivel: battery.level * 100 + '%',
+                                    carregando: battery.charging ? 'Sim' : 'Não'
+                                };
+                            } else {
+                                resposta.erro = 'Informação de bateria não disponível';
+                            }
+                            break;
+                            
+                        case 'rede':
+                            const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+                            if (connection) {
+                                resposta.resultado = {
+                                    tipo: connection.type || 'desconhecido',
+                                    efetivo: connection.effectiveType,
+                                    download: connection.downlink + ' Mbps',
+                                    rtt: connection.rtt + ' ms'
+                                };
+                            } else {
+                                resposta.resultado = { info: 'API de rede não disponível' };
+                            }
+                            break;
+                            
+                        case 'arquivo':
+                            // Implementar upload de arquivo
+                            break;
+                    }
+                } catch (e) {
+                    resposta.erro = e.message;
+                }
+                
+                socket.emit('resposta', resposta);
+            });
+            
+            socket.on('celular-registrado', () => {
+                const status = document.getElementById('status-celular');
+                status.style.display = 'block';
+                status.className = 'status success';
+                status.innerHTML = '✅ Conectado ao servidor!';
+            });
+        </script>
         ` : `
+        <!-- MODO CONTROLE -->
         <div class="card">
             <h2>Conectar ao Celular</h2>
             <div class="input-group">
@@ -216,142 +532,108 @@ app.get('/', (req, res) => {
         </div>
         
         <div class="card" id="controles-card" style="display: none;">
-            <h2>Controles</h2>
-            <div class="grid-2">
-                <button class="control-btn" onclick="enviarComando('vibrar', 200)">📳 Vibrar</button>
-                <button class="control-btn" onclick="enviarComando('vibrar', 500)">📳 Vibrar Forte</button>
-                <button class="control-btn" onclick="enviarComando('alerta', {msg: 'Olá!'})">⚠️ Alerta</button>
-                <button class="control-btn" onclick="enviarComando('beep')">🔊 Beep</button>
+            <h2>🎮 Controles Básicos</h2>
+            <div class="grid-4">
+                <button class="control-btn" onclick="enviarComando('vibrar', 200)">
+                    <span>📳</span> Vibrar
+                </button>
+                <button class="control-btn" onclick="enviarComando('vibrar', 500)">
+                    <span>📳📳</span> Vibrar Forte
+                </button>
+                <button class="control-btn" onclick="enviarComando('alerta', {msg: 'Olá!'})">
+                    <span>⚠️</span> Alerta
+                </button>
+                <button class="control-btn" onclick="enviarComando('beep')">
+                    <span>🔊</span> Beep
+                </button>
             </div>
         </div>
         
+        <div class="card" id="midia-card" style="display: none;">
+            <h2>📸 Mídia e Sensores</h2>
+            <div class="grid-3">
+                <button class="control-btn" onclick="enviarComando('print')">
+                    <span>🖥️</span> Print Screen
+                </button>
+                <button class="control-btn" onclick="enviarComando('camera', {audio: false})">
+                    <span>📷</span> Ativar Câmera
+                </button>
+                <button class="control-btn" onclick="enviarComando('foto')">
+                    <span>📸</span> Tirar Foto
+                </button>
+                <button class="control-btn" onclick="enviarComando('camera', {audio: true})">
+                    <span>🎥</span> Câmera + Áudio
+                </button>
+                <button class="control-btn" onclick="enviarComando('audio', {acao: 'iniciar'})">
+                    <span>🎤</span> Gravar Áudio
+                </button>
+                <button class="control-btn" onclick="enviarComando('audio', {acao: 'parar'})">
+                    <span>⏹️</span> Parar Áudio
+                </button>
+            </div>
+        </div>
+        
+        <div class="card" id="info-card" style="display: none;">
+            <h2>ℹ️ Informações do Dispositivo</h2>
+            <div class="grid-3">
+                <button class="control-btn" onclick="enviarComando('localizacao')">
+                    <span>📍</span> Localização
+                </button>
+                <button class="control-btn" onclick="enviarComando('bateria')">
+                    <span>🔋</span> Bateria
+                </button>
+                <button class="control-btn" onclick="enviarComando('rede')">
+                    <span>📶</span> Rede
+                </button>
+            </div>
+        </div>
+        
+        <div class="card" id="dados-card" style="display: none;">
+            <h3>📊 Dados Recebidos</h3>
+            <div id="dados-display" class="info-box"></div>
+        </div>
+        
         <div class="card" id="log-card" style="display: none;">
-            <h3>Log de Comandos</h3>
+            <h3>📋 Log de Comandos</h3>
             <div id="log-comandos" class="log-container"></div>
         </div>
-        `}
-    </div>
-
-    <script src="/socket.io/socket.io.js"></script>
-    <script>
-        const socket = io();
-        const modo = '${modo}';
-        const codigoUrl = '${codigo}';
-        let celularConectado = false;
-        let codigoAtual = codigoUrl;
-
-        // Funções auxiliares
-        function adicionarLog(mensagem, tipo = 'info') {
-            const logDiv = document.getElementById('log-comandos');
-            if (!logDiv) return;
+        
+        <script>
+            let celularConectado = false;
+            let codigoAtual = '${codigo}';
             
-            const entry = document.createElement('div');
-            entry.style.padding = '5px 0';
-            entry.style.borderBottom = '1px solid #e2e8f0';
-            entry.style.color = tipo === 'erro' ? '#742a2a' : '#22543d';
-            entry.innerHTML = \`[${new Date().toLocaleTimeString()}] \${mensagem}\`;
-            logDiv.insertBefore(entry, logDiv.firstChild);
-        }
-
-        function gerarQRCode(codigo) {
-            fetch(\`/api/qrcode/\${codigo}\`)
-                .then(res => res.json())
-                .then(data => {
-                    document.getElementById('qrcode-container').innerHTML = 
-                        \`<img src="\${data.qrCode}" alt="QR Code">\`;
-                });
-        }
-
-        // Event Listeners
-        if (modo === 'celular') {
-            // Registrar celular
-            socket.emit('registrar-celular', { 
-                codigo: codigoUrl,
-                info: { plataforma: navigator.platform }
-            });
-            
-            socket.on('celular-registrado', () => {
-                const status = document.getElementById('status-celular');
-                status.style.display = 'block';
-                status.className = 'status success';
-                status.innerHTML = '✅ Conectado ao servidor! Aguardando comandos...';
-            });
-            
-            socket.on('executar-comando', (data) => {
-                const { comando, valor } = data;
+            function adicionarLog(mensagem, tipo = 'info') {
+                const logDiv = document.getElementById('log-comandos');
+                if (!logDiv) return;
                 
-                // Mostrar comando
-                const lista = document.getElementById('lista-comandos');
-                const comandoDiv = document.createElement('div');
-                comandoDiv.style.background = '#4CAF50';
-                comandoDiv.style.color = 'white';
-                comandoDiv.style.padding = '10px';
-                comandoDiv.style.margin = '5px 0';
-                comandoDiv.style.borderRadius = '5px';
-                comandoDiv.innerHTML = \`<strong>\${comando}:</strong> \${JSON.stringify(valor)}\`;
-                lista.insertBefore(comandoDiv, lista.firstChild);
-                
-                document.getElementById('comandos-recebidos').style.display = 'block';
-                
-                // Executar comando
-                let resposta = { comando };
-                
-                switch(comando) {
-                    case 'vibrar':
-                        if (navigator.vibrate) {
-                            navigator.vibrate(valor);
-                            resposta.resultado = 'Vibração executada';
-                        } else {
-                            resposta.erro = 'Vibração não suportada';
-                        }
-                        break;
-                        
-                    case 'alerta':
-                        alert(valor.msg || 'Comando recebido!');
-                        resposta.resultado = 'Alerta mostrado';
-                        break;
-                        
-                    case 'beep':
-                        try {
-                            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                            const osc = ctx.createOscillator();
-                            osc.connect(ctx.destination);
-                            osc.frequency.value = 800;
-                            osc.start();
-                            osc.stop(ctx.currentTime + 0.1);
-                            resposta.resultado = 'Beep executado';
-                        } catch (e) {
-                            resposta.erro = 'Erro no beep';
-                        }
-                        break;
-                }
-                
-                socket.emit('resposta', resposta);
-            });
+                const entry = document.createElement('div');
+                entry.className = 'log-entry';
+                entry.style.color = tipo === 'erro' ? '#742a2a' : '#22543d';
+                entry.innerHTML = \`[\${new Date().toLocaleTimeString()}] \${mensagem}\`;
+                logDiv.insertBefore(entry, logDiv.firstChild);
+            }
             
-        } else {
-            // Modo controle
-            const inputCodigo = document.getElementById('codigo');
+            function gerarQRCode(codigo) {
+                fetch(\`/api/qrcode/\${codigo}\`)
+                    .then(res => res.json())
+                    .then(data => {
+                        document.getElementById('qrcode-container').innerHTML = 
+                            \`<img src="\${data.qrCode}" alt="QR Code">\`;
+                    });
+            }
             
-            inputCodigo.addEventListener('input', (e) => {
-                const codigo = e.target.value.toUpperCase();
-                if (codigo.length === 6) {
-                    gerarQRCode(codigo);
-                }
-            });
-            
-            window.conectar = function() {
-                const codigo = inputCodigo.value.toUpperCase();
+            function conectar() {
+                const codigo = document.getElementById('codigo').value.toUpperCase();
                 if (codigo.length === 6) {
                     codigoAtual = codigo;
                     socket.emit('registrar-controle', { codigo });
-                    adicionarLog('Conectando...', 'info');
+                    adicionarLog('Conectando...');
                 } else {
                     alert('Digite um código de 6 dígitos');
                 }
-            };
+            }
             
-            window.enviarComando = function(comando, valor) {
+            function enviarComando(comando, valor) {
                 if (!celularConectado) {
                     alert('Conecte a um celular primeiro');
                     return;
@@ -363,8 +645,16 @@ app.get('/', (req, res) => {
                     valor: valor
                 });
                 
-                adicionarLog(\`Comando enviado: \${comando}\`);
-            };
+                adicionarLog(\`📤 Comando enviado: \${comando}\`);
+            }
+            
+            // Event listeners
+            document.getElementById('codigo')?.addEventListener('input', (e) => {
+                const codigo = e.target.value.toUpperCase();
+                if (codigo.length === 6) {
+                    gerarQRCode(codigo);
+                }
+            });
             
             socket.on('controle-registrado', (data) => {
                 const status = document.getElementById('status-conexao');
@@ -376,8 +666,12 @@ app.get('/', (req, res) => {
                     status.innerHTML = '✅ Conectado ao celular!';
                     
                     document.getElementById('controles-card').style.display = 'block';
+                    document.getElementById('midia-card').style.display = 'block';
+                    document.getElementById('info-card').style.display = 'block';
                     document.getElementById('log-card').style.display = 'block';
-                    adicionarLog('Conectado com sucesso!');
+                    document.getElementById('dados-card').style.display = 'block';
+                    
+                    adicionarLog('✅ Conectado com sucesso!');
                 } else {
                     celularConectado = false;
                     status.style.display = 'block';
@@ -388,9 +682,24 @@ app.get('/', (req, res) => {
             
             socket.on('resposta-controle', (data) => {
                 if (data.erro) {
-                    adicionarLog(\`Erro: \${data.erro}\`, 'erro');
+                    adicionarLog(\`❌ Erro: \${data.erro}\`, 'erro');
                 } else {
-                    adicionarLog(\`Resposta: \${data.comando} executado\`);
+                    adicionarLog(\`✅ \${data.comando}: \${JSON.stringify(data.resultado)}\`);
+                    
+                    // Mostrar dados recebidos
+                    if (data.dados) {
+                        const display = document.getElementById('dados-display');
+                        if (data.dados.startsWith('data:image')) {
+                            display.innerHTML = \`<img src="\${data.dados}" style="max-width: 100%;">\`;
+                        } else {
+                            display.innerHTML = \`<pre>\${JSON.stringify(data.dados, null, 2)}</pre>\`;
+                        }
+                    }
+                    
+                    if (data.resultado && typeof data.resultado === 'object') {
+                        const display = document.getElementById('dados-display');
+                        display.innerHTML = \`<pre>\${JSON.stringify(data.resultado, null, 2)}</pre>\`;
+                    }
                 }
             });
             
@@ -400,9 +709,16 @@ app.get('/', (req, res) => {
                 status.style.display = 'block';
                 status.className = 'status error';
                 status.innerHTML = '❌ Celular desconectado';
-                adicionarLog('Celular desconectado', 'erro');
+                adicionarLog('❌ Celular desconectado', 'erro');
             });
-        }
+        </script>
+        `}
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const modo = '${modo}';
     </script>
 </body>
 </html>
