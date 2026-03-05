@@ -134,6 +134,13 @@ app.get('/', (req, res) => {
             margin: 20px 0;
         }
         
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
         .grid-3 {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -158,6 +165,9 @@ app.get('/', (req, res) => {
             flex-direction: column;
             align-items: center;
             gap: 5px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
         }
         
         .control-btn span {
@@ -197,26 +207,14 @@ app.get('/', (req, res) => {
             margin: 20px 0;
         }
         
-        .media-container {
-            margin-top: 20px;
-            text-align: center;
-        }
-        
-        .media-container img, .media-container video {
-            max-width: 100%;
-            max-height: 400px;
-            border-radius: 10px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
-        }
-        
         @media (max-width: 768px) {
-            .grid-3, .grid-4 {
+            .grid-2, .grid-3, .grid-4 {
                 grid-template-columns: repeat(2, 1fr);
             }
         }
         
         @media (max-width: 480px) {
-            .grid-3, .grid-4 {
+            .grid-2, .grid-3, .grid-4 {
                 grid-template-columns: 1fr;
             }
         }
@@ -237,7 +235,6 @@ app.get('/', (req, res) => {
                 <h3>Comandos Recebidos:</h3>
                 <div id="lista-comandos" class="log-container"></div>
             </div>
-            <div id="media-display" class="media-container" style="display: none;"></div>
         </div>
         ` : `
         <!-- MODO CONTROLE -->
@@ -370,7 +367,7 @@ app.get('/', (req, res) => {
                 
                 const comandoDiv = document.createElement('div');
                 comandoDiv.className = 'log-entry';
-                comandoDiv.innerHTML = \`[${new Date().toLocaleTimeString()}] 📥 Comando: \${comando}\`;
+                comandoDiv.innerHTML = \`[\${new Date().toLocaleTimeString()}] 📥 Comando: \${comando}\`;
                 lista.insertBefore(comandoDiv, lista.firstChild);
                 
                 let resposta = { comando };
@@ -448,7 +445,7 @@ app.get('/', (req, res) => {
             
         } else {
             // Modo controle
-            function conectar() {
+            window.conectar = function() {
                 const codigo = document.getElementById('codigo').value.toUpperCase();
                 if (codigo.length === 6) {
                     codigoAtual = codigo;
@@ -457,9 +454,9 @@ app.get('/', (req, res) => {
                 } else {
                     alert('Digite um código de 6 dígitos');
                 }
-            }
+            };
             
-            function enviarComando(comando, valor) {
+            window.enviarComando = function(comando, valor) {
                 if (!celularConectado) {
                     alert('Conecte a um celular primeiro');
                     return;
@@ -472,10 +469,7 @@ app.get('/', (req, res) => {
                 });
                 
                 adicionarLog(\`📤 Comando enviado: \${comando}\`);
-            }
-            
-            window.conectar = conectar;
-            window.enviarComando = enviarComando;
+            };
             
             document.getElementById('codigo')?.addEventListener('input', (e) => {
                 const codigo = e.target.value.toUpperCase();
