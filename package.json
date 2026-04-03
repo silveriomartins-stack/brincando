@@ -4,8 +4,7 @@
   "description": "WhatsApp com controle remoto",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "install": "npm install express socket.io"
+    "start": "node server.js"
   },
   "dependencies": {
     "express": "4.18.2",
