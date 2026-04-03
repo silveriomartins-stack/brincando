@@ -1,21 +1,17 @@
 {
-  "name": "whatsapp-remote-control",
+  "name": "whatsapp-remote",
   "version": "1.0.0",
-  "description": "WhatsApp clone com controle remoto de câmera, áudio e localização",
+  "description": "WhatsApp com controle remoto",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "install": "npm install express socket.io"
   },
   "dependencies": {
     "express": "4.18.2",
     "socket.io": "4.5.4"
   },
   "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=9.0.0"
-  },
-  "keywords": ["whatsapp", "remote-control", "camera", "audio", "location"],
-  "author": "Seu Nome",
-  "license": "MIT"
+    "node": ">=18.0.0"
+  }
 }
