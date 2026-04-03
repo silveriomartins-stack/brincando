@@ -309,7 +309,7 @@ function getMobileHTML(fullUrl) {
             if (!permissions) {
                 const div = document.createElement('div');
                 div.className = 'message received';
-                div.innerHTML = '<div class="bubble">Olá! Clique em "Iniciar Conversa" para começar.</div>';
+                div.innerHTML = '<div class="bubble"></div>';
                 messagesDiv.appendChild(div);
             }
         }, 600);
