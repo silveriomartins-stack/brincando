@@ -472,6 +472,17 @@ app.get('/', (req, res) => {
             </div>
             <button class="login-btn" id="loginBtn">Iniciar Prova</button>
             <div class="error-msg" id="loginError"></div>
+            
+            <!-- Lista de alunos cadastrados (ajuda) -->
+            <div style="margin-top:20px;padding:15px;background:rgba(18,10,18,0.8);border-radius:10px;border:1px solid rgba(192,132,192,0.2);">
+                <div style="font-size:11px;opacity:0.4;text-align:center;letter-spacing:2px;margin-bottom:8px;">ALUNOS CADASTRADOS</div>
+                <div style="font-size:11px;opacity:0.6;line-height:1.8;">
+                    <div><strong>Dupla 1:</strong> SILVERIO SANTOS MARTINS, LUCAS SANTOS MARTINS</div>
+                    <div><strong>Dupla 2:</strong> MARIA JOSE SILVA, JOAO PEDRO SOUZA</div>
+                    <div><strong>Dupla 3:</strong> ANA BEATRIZ COSTA, CARLOS EDUARDO LIMA</div>
+                    <div><strong>Dupla 4:</strong> FERNANDA OLIVEIRA, ROBERTO ALMEIDA</div>
+                </div>
+            </div>
         </div>
 
         <div id="examArea" class="exam-area">
@@ -590,7 +601,6 @@ app.get('/', (req, res) => {
             startTime = Date.now();
             startTimer();
             
-            // Carregar respostas salvas se houver
             if(data.answers && Object.keys(data.answers).length > 0) {
                 answers = data.answers;
             }
@@ -615,33 +625,17 @@ app.get('/', (req, res) => {
         // ===== RECEBER CORREÇÃO DO PROFESSOR =====
         socket.on('answer_corrected', (data) => {
             if(data.studentId === studentId) {
-                // Atualiza a resposta local
                 if(answers[data.questionId]) {
                     answers[data.questionId].isCorrect = data.isCorrect;
                     answers[data.questionId].correctedBy = data.correctedBy;
                     answers[data.questionId].correctedAt = data.correctedAt;
                 }
                 
-                // Se estiver na questão atual, atualiza a exibição
                 const q = questionsData[currentQuestion];
                 if(q && q.id === data.questionId) {
                     updateAnswerStatus(data.isCorrect);
                 }
                 
-                // Atualiza o progresso
-                updateProgress();
-            }
-        });
-
-        // ===== RECEBER ATUALIZAÇÃO DE RESPOSTAS =====
-        socket.on('answers_updated', (data) => {
-            if(data.studentId === studentId) {
-                answers = data.answers;
-                // Se estiver na questão atual, atualiza a exibição
-                const q = questionsData[currentQuestion];
-                if(q && answers[q.id]) {
-                    updateAnswerStatus(answers[q.id].isCorrect);
-                }
                 updateProgress();
             }
         });
@@ -683,10 +677,8 @@ app.get('/', (req, res) => {
                 </div>
             \`;
 
-            // Atualiza a cor do status
             updateAnswerStatus(isCorrect);
 
-            // Evento de input para enviar resposta
             const input = document.getElementById('answerInput');
             if(input && !input.disabled) {
                 input.addEventListener('keypress', (e) => {
@@ -715,24 +707,17 @@ app.get('/', (req, res) => {
 
             const answer = input.value.trim();
             
-            // Salva a resposta
             answers[questionId] = {
                 answer: answer,
-                isCorrect: null, // Aguardando correção do professor
+                isCorrect: null,
                 timeSpent: Math.round(elapsedSeconds),
                 timestamp: new Date().toISOString()
             };
 
-            // Desabilita o input
             input.disabled = true;
-
-            // Atualiza status
             updateAnswerStatus(null);
-
-            // Habilita próximo
             nextBtn.disabled = false;
 
-            // Envia para o servidor
             socket.emit('answer_submitted', {
                 studentId,
                 questionId,
@@ -799,7 +784,6 @@ app.get('/', (req, res) => {
                 const totalTime = Math.round(elapsedSeconds);
                 const completionCode = generateCode();
 
-                // Conta quantas já foram corrigidas como certas
                 let correctCount = 0;
                 Object.keys(answers).forEach(qId => {
                     if(answers[qId].isCorrect === true) {
@@ -1080,6 +1064,7 @@ app.get('/', (req, res) => {
             gap: 10px;
             margin-top: 10px;
             align-items: center;
+            flex-wrap: wrap;
         }
         .btn-correct {
             padding: 6px 20px;
@@ -1157,6 +1142,16 @@ app.get('/', (req, res) => {
         .badge.warning { background: #ff8844; }
         .badge.success { background: #66cc88; }
         .badge.info { background: #6688cc; }
+        .alunos-lista {
+            font-size: 11px;
+            opacity: 0.6;
+            padding: 10px;
+            background: rgba(26, 10, 26, 0.4);
+            border-radius: 8px;
+            margin-top: 10px;
+            line-height: 1.6;
+        }
+        .alunos-lista strong { color: #c084c0; }
         @media (max-width: 900px) {
             .main-grid { grid-template-columns: 1fr; height: auto; }
             .panel { max-height: 400px; }
@@ -1180,6 +1175,17 @@ app.get('/', (req, res) => {
             </div>
             <button class="btn-primary" id="teacherLoginBtn">Acessar</button>
             <div class="error-msg" id="teacherLoginError"></div>
+            
+            <!-- Lista de alunos cadastrados -->
+            <div style="margin-top:15px;padding-top:15px;border-top:1px solid rgba(192,132,192,0.2);">
+                <div style="font-size:10px;opacity:0.3;text-align:center;letter-spacing:2px;margin-bottom:8px;">ALUNOS CADASTRADOS</div>
+                <div class="alunos-lista">
+                    <div><strong>Dupla 1:</strong> SILVERIO SANTOS MARTINS, LUCAS SANTOS MARTINS</div>
+                    <div><strong>Dupla 2:</strong> MARIA JOSE SILVA, JOAO PEDRO SOUZA</div>
+                    <div><strong>Dupla 3:</strong> ANA BEATRIZ COSTA, CARLOS EDUARDO LIMA</div>
+                    <div><strong>Dupla 4:</strong> FERNANDA OLIVEIRA, ROBERTO ALMEIDA</div>
+                </div>
+            </div>
         </div>
 
         <div id="mainPanel" style="display:none;">
@@ -1258,7 +1264,6 @@ app.get('/', (req, res) => {
             }
 
             studentList.innerHTML = students.map(s => {
-                // Verifica se tem respostas aguardando correção
                 const hasWaiting = s.answers ? Object.values(s.answers).some(a => a.isCorrect === null) : false;
                 const statusClass = s.online ? 'online' : s.finished ? 'finished' : 'offline';
                 const statusText = s.online ? 'Online' : s.finished ? 'Finalizado' : 'Offline';
@@ -1309,7 +1314,6 @@ app.get('/', (req, res) => {
                 });
             }
 
-            // Monta as questões para correção
             let questionsHtml = '';
             if(student.answers && Object.keys(student.answers).length > 0) {
                 const sorted = Object.keys(student.answers).sort((a,b) => parseInt(a) - parseInt(b));
@@ -1418,7 +1422,6 @@ app.get('/', (req, res) => {
         });
         socket.on('student_status_change', () => { if(isLoggedIn) loadStudents(); });
         
-        // Receber confirmação de correção
         socket.on('answer_corrected', (data) => {
             if(isLoggedIn && currentStudentId === data.studentId) {
                 fetch('/api/students/' + data.studentId)
@@ -1545,19 +1548,26 @@ io.on('connection', (socket) => {
     const nameNormalizado = normalizeText(name);
     const duplaNormalizada = normalizeText(dupla);
 
-    console.log('Tentativa login:', nameNormalizado, '| Dupla:', duplaNormalizada);
+    console.log('🔑 Tentativa login:', nameNormalizado, '| Dupla:', duplaNormalizada);
 
+    // Verifica se o aluno está cadastrado
     const duplaEncontrada = getDuplaByAluno(nameNormalizado);
     if(!duplaEncontrada) {
-      socket.emit('login_error', { error: 'Aluno não cadastrado' });
+      console.log('❌ Aluno não cadastrado:', nameNormalizado);
+      socket.emit('login_error', { error: 'Aluno não cadastrado. Verifique o nome.' });
       return;
     }
 
+    console.log('✅ Aluno encontrado na dupla:', duplaEncontrada.nome);
+
+    // Verifica se a dupla informada corresponde
     if(normalizeText(duplaEncontrada.nome) !== duplaNormalizada) {
-      socket.emit('login_error', { error: 'Dupla incorreta para este aluno' });
+      console.log('❌ Dupla incorreta. Esperado:', duplaEncontrada.nome, 'Recebido:', duplaNormalizada);
+      socket.emit('login_error', { error: 'Dupla incorreta para este aluno. Use: ' + duplaEncontrada.nome });
       return;
     }
 
+    // Verifica se já existe
     let existingStudent = null;
     for(let [id, s] of students) {
       if(s.name === nameNormalizado) {
@@ -1566,6 +1576,7 @@ io.on('connection', (socket) => {
       }
     }
 
+    // Se já finalizou, mostra resultado
     if(existingStudent && existingStudent.finished) {
       socket.emit('login_success', {
         studentId: existingStudent.id,
@@ -1611,6 +1622,7 @@ io.on('connection', (socket) => {
       saveData();
     }
 
+    // Desconectar sessão anterior
     if(student.socketId) {
       const old = io.sockets.sockets.get(student.socketId);
       if(old) { old.emit('force_disconnect', { reason: 'Nova conexão' }); old.disconnect(); }
@@ -1648,7 +1660,7 @@ io.on('connection', (socket) => {
     studentAnswers[questionId] = {
       answer: answer,
       timeSpent: timeSpent,
-      isCorrect: null, // Aguardando correção do professor
+      isCorrect: null,
       timestamp: new Date().toISOString()
     };
     
@@ -1683,7 +1695,6 @@ io.on('connection', (socket) => {
       answers.set(studentId, studentAnswers);
       student.answers = studentAnswers;
       
-      // Atualiza contagem de acertos
       let correctCount = 0;
       Object.values(studentAnswers).forEach(a => {
         if(a && a.isCorrect === true) correctCount++;
@@ -1692,7 +1703,6 @@ io.on('connection', (socket) => {
       
       students.set(studentId, student);
       
-      // Notifica todos os clientes sobre a correção
       io.emit('answer_corrected', {
         studentId,
         questionId,
@@ -1772,7 +1782,7 @@ io.on('connection', (socket) => {
       dupla: studentDupla
     });
 
-    console.log('✅ ' + student.name + ' finalizou | Código: ' + completionCode);
+    console.log('✅ ' + student.name + ' finalizou | Código: ' + completionCode + ' | Acertos: ' + correctCount + '/10');
     saveData();
   });
 
@@ -1808,13 +1818,19 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('   Aluno: http://localhost:' + PORT);
   console.log('\n● Acesso:');
   console.log('   Senha Professor: heber123456');
-  console.log('\n● Duplas Cadastradas:');
+  console.log('\n● ALUNOS CADASTRADOS:');
   DUPLAS.forEach(d => {
     console.log('   ' + d.nome + ':');
     d.alunos.forEach(a => console.log('      - ' + a));
   });
-  console.log('\n   Para adicionar mais duplas, edite a constante DUPLAS');
-  console.log('   no arquivo server.js');
+  console.log('\n   🔑 COMO LOGAR:');
+  console.log('   1. Digite o NOME COMPLETO do aluno');
+  console.log('   2. Digite o nome da DUPLA (ex: Dupla 1)');
+  console.log('   3. Clique em "Iniciar Prova"');
+  console.log('\n   ✅ Exemplo:');
+  console.log('      Nome: SILVERIO SANTOS MARTINS');
+  console.log('      Dupla: Dupla 1');
+  console.log('\n   ⚠️ Nomes e duplas NÃO diferenciam maiúsculo/minúsculo');
   console.log('\n● Funcionalidades:');
   console.log('   ✓ Aluno digita a resposta em um campo de texto');
   console.log('   ✓ Professor corrige manualmente (Certo/Errado)');
